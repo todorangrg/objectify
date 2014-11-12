@@ -1,0 +1,6 @@
+<launch>
+
+  <include file="$(find stage_simulation)/launch/robot_in_simulation.launch"/>
+  <include file="$(find exercise1)/launch/mr_stage.launch"/>
+
+</launch>
