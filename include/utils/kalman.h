@@ -34,6 +34,7 @@ public:
 
     SegmentDataPtrVectorPtr    seg_init_old;
 
+    SegmentDataPtrVectorPtr    seg_init_new;
     SegmentDataPtrVectorPtr    seg_init;
     SegmentDataExtPtrVectorPtr seg_ext;
     ros::Time                  time_stamp;

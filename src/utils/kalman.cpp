@@ -37,6 +37,7 @@ void KalmanSLDM::advance(InputData &input, bool advance){//TODO deal with "this 
         Oi_old = Oi;
         if(Oi.size() > 0){
             //seg_init_old = seg_init;
+            //seg_init = seg_init_new;
             seg_init_old = SegmentDataPtrVectorPtr ( new SegmentDataPtrVector);
             for(SegmentDataPtrVectorIter ss = seg_init->begin(); ss != seg_init->end(); ss++){
                 seg_init_old->push_back(SegmentDataPtr(new  SegmentData(ss)));
@@ -242,7 +243,7 @@ void KalmanSLDM::run(InputData &input,
                     break;
                 }
             }
-            if(/*(found)&&*/(seg_unique)&&(entry->frame_old->getParrent()->len > entry->frame_new->getParrent()->len + 0.01)){
+            if(/*(found)&&*/(seg_unique)&&(entry->frame_old->getParrent()->getLen() > entry->frame_new->getParrent()->getLen() + 0.01)){
                 sss = entry->frame_old->getParrent();
                 p_tf = true;
             }
@@ -258,7 +259,8 @@ void KalmanSLDM::run(InputData &input,
             if(!found){
                 seg_init->push_back(SegmentDataPtr(new  SegmentData(oi->first,id_plus)));
                 if(p_tf){
-                    for(PointDataVectorIter pp = sss->p_tf.begin(); pp != sss->p_tf.end(); pp++){
+                    //for(PointDataVectorIter pp = sss->p_tf.begin(); pp != sss->p_tf.end(); pp++){
+                    for(PointDataVectorIter pp = sss->p.begin(); pp != sss->p.end(); pp++){
                         seg_init->back()->p.push_back(to_polar(mat_mult(entry->frame_old->conv->tf->front().tf.T,to_xy(*pp))));
                     }
                 }
@@ -314,7 +316,8 @@ void KalmanSLDM::run(InputData &input,
         }
         seg_init->push_back(SegmentDataPtr(new  SegmentData(s_oi->first->getObj(),id_plus)));
 
-        for(PointDataVectorIter pp = s_oi->first->p_tf.begin(); pp != s_oi->first->p_tf.end(); pp++){
+        //for(PointDataVectorIter pp = s_oi->first->p_tf.begin(); pp != s_oi->first->p_tf.end(); pp++){
+        for(PointDataVectorIter pp = s_oi->first->p.begin(); pp != s_oi->first->p.end(); pp++){
             seg_init->back()->p.push_back(*pp);
         }
         id_plus++;

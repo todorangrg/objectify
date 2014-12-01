@@ -14,6 +14,8 @@ class PointDataSample;
 class SegmentData;
 class SegmentDataExt;
 class SegmentDataNeigh;
+
+template<class SegData>
 class IteratorIndexSet;
 class SensorFrame;
 class ObjectData;
@@ -357,55 +359,54 @@ public:
     void          setObj(ObjectDataPtr _obj){obj = _obj;}
     xy            getCom()                  {return com;}
     void          setCom(xy _com)           {com = _com;}
+    double        getLen()                  {return len;}
+    void          setLen(double _len)       {len = _len;}
 
     CorrFlag corr_flag;
+    bool     solved;
 
-    bool solved;
-
-    //virtual ObjSegVarnt  getParrent() = 0;
-    //virtual void setParrent(ObjSegVarnt) = 0;
-
-    SegmentDataBase(int _id): id(_id), corr_flag(CORR_121),solved(false){}
+    SegmentDataBase(int _id): id(_id), corr_flag(CORR_121),solved(false), len(0){}
     SegmentDataBase(ObjectDataPtr _obj, int _id): obj(_obj), id(_id), corr_flag(CORR_121),solved(false){}
-    SegmentDataBase(ObjectDataPtr _obj, int _id, CorrFlag _cf): obj(_obj), id(_id), corr_flag(_cf),solved(false){}
+    SegmentDataBase(ObjectDataPtr _obj, int _id, double _len): obj(_obj), id(_id), len(_len), corr_flag(CORR_121),solved(false){}
+    SegmentDataBase(ObjectDataPtr _obj, int _id, CorrFlag _cf): obj(_obj), id(_id), len(0), corr_flag(_cf),solved(false){}
+    SegmentDataBase(ObjectDataPtr _obj, int _id, double _len, CorrFlag _cf): obj(_obj), id(_id), len(_len), corr_flag(_cf),solved(false){}
     ~SegmentDataBase(){}
 protected:
     ObjectDataPtr obj;
     xy com;
+    double len;
 };
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 class SegmentData : public SegmentDataBase{
 public:
-    ObjectDataPtr getParrent()                {return obj;}
-    void        setParrent(ObjectDataPtr _obj){obj = _obj;}
+    ObjectDataPtr getParrent()                  {return obj;}
+    void          setParrent(ObjectDataPtr _obj){obj = _obj;}
 
-    double len;
-    PointDataVector p_tf;
     //Constructors
-    SegmentData(ObjectDataPtr _obj, int _id) : SegmentDataBase(_obj,_id){}
-    SegmentData(int _id) : SegmentDataBase(_id){}
-    SegmentData(SegmentDataPtrVectorIter& _seg, int _id): SegmentDataBase((*_seg)->getObj(), _id), len((*_seg)->len){}
-    SegmentData(SegmentDataPtrVectorIter& _seg): SegmentDataBase((*_seg)->getObj(), (*_seg)->id), len((*_seg)->len){}
+    SegmentData(int _id)                               : SegmentDataBase(                           _id){}
+    SegmentData(ObjectDataPtr _obj, int _id)           : SegmentDataBase(_obj             ,         _id){}
+    SegmentData(SegmentDataPtrVectorIter _seg)         : SegmentDataBase((*_seg)->getObj(), (*_seg)->id, (*_seg)->len){}
+    SegmentData(SegmentDataPtrVectorIter _seg, int _id): SegmentDataBase((*_seg)->getObj(),         _id, (*_seg)->len){}
 };
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 class SegmentDataExt : public SegmentDataBase{
 public:
-    double len;
     boost::shared_ptr<ConvData> conv;
 
-    SegmentDataPtr getParrent()                    {return parrent;}
-    void        setParrent(SegmentDataPtr _parrent){parrent = _parrent;}
+    SegmentDataPtr getParrent()                       {return parrent;}
+    void           setParrent(SegmentDataPtr _parrent){parrent = _parrent;}
 
 
     //Constructors
-    SegmentDataExt(SegmentDataPtr _seg, int _id)         : SegmentDataBase(_seg->getObj()  , _id, CORR_121)       , parrent(_seg){}
-    SegmentDataExt(SegmentDataExt& _segext)              : SegmentDataBase(_segext.getObj(), _segext.id, _segext.corr_flag),len(_segext.len),parrent(_segext.getParrent()){}
-    SegmentDataExt(SegmentDataExtPtrVectorIter& _segext) : SegmentDataBase((*_segext)->getObj(), (*_segext)->id, (*_segext)->corr_flag),len((*_segext)->len),parrent((*_segext)->getParrent()){}
-    SegmentDataExt(SegmentDataExtPtrVectorIter& _segext, int _id): SegmentDataBase((*_segext)->getObj(), _id, (*_segext)->corr_flag),len((*_segext)->len),parrent((*_segext)->getParrent()){}
+
+    SegmentDataExt(SegmentDataExt& _segext)                     : SegmentDataBase(    _segext.getObj(),     _segext.id, _segext.len, _segext.corr_flag),parrent(_segext.getParrent()){}
+    SegmentDataExt(SegmentDataPtr _seg, int _id)                : SegmentDataBase(      _seg->getObj(),            _id, CORR_121)       , parrent(_seg){}
+    SegmentDataExt(SegmentDataExtPtrVectorIter _segext)         : SegmentDataBase((*_segext)->getObj(), (*_segext)->id, (*_segext)->len, (*_segext)->corr_flag),parrent((*_segext)->getParrent()){}
+    SegmentDataExt(SegmentDataExtPtrVectorIter _segext, int _id): SegmentDataBase((*_segext)->getObj(),            _id, (*_segext)->len, (*_segext)->corr_flag),parrent((*_segext)->getParrent()){}
     SegmentDataExt& operator= (const SegmentDataExt & seg);
 private:
     SegmentDataPtr parrent;

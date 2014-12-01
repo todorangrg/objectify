@@ -1,6 +1,14 @@
+//DONE
+
 #ifndef ITERATORS_H
 #define ITERATORS_H
 #include "utils/base_classes.h"
+
+class SegData;
+
+template<class SegData>
+class IteratorIndexSet2;
+
 
 enum IISstatus{
     IIS_HARD_INVALID=0, //user-issued invalid
@@ -34,13 +42,13 @@ enum IISmode{
 };
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
-
+template<class SegData>
 class IteratorIndexSet{
 public:
-    friend class IteratorIndexSet2;
+    friend class IteratorIndexSet2<SegData>;
 
-    SegmentDataExtPtrVectorPtr&  input() {return input_;}
-    SegmentDataExtPtrVectorIter& seg()   {return seg_;}
+    boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > >&   input() {return input_;}
+    typename std::vector<boost::shared_ptr<SegData> >::iterator&  seg()   {return seg_;}
     PointDataVectorIter&   p()     {return p_;}
     int&                   i()     {return i_;}
     int&                   imax()  {return imax_;}
@@ -48,42 +56,44 @@ public:
 
     IISstatus update_status();
     bool advance(IISmode mode, IISmode dir);
-    void push_bk(SegmentDataExtPtrVectorPtr &output, PointData val, bool &split_segment);
-    void push_bk(SegmentDataExtPtrVectorPtr &output, PointData val);
-    void pop_bk (SegmentDataExtPtrVectorPtr &output);
+    void push_bk(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &output, PointData val, bool &split_segment);
+    void push_bk(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &output, PointData val);
+    void pop_bk (boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &output);
     bool erase  ();
     //void erase  (boost::shared_ptr<std::Vector<SegmentData> > &output,std::Vector<SegmentData>::iterator _seg);
 
-    IteratorIndexSet(const SegmentDataExtPtrVectorPtr &_input, IISmode mode=FWD);
+    IteratorIndexSet(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &_input, IISmode mode=FWD);
     IteratorIndexSet(){}
+    ~IteratorIndexSet(){}
 private:
-    SegmentDataExtPtrVectorPtr  input_;
-    SegmentDataExtPtrVectorIter seg_;
+    boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > >  input_;
+    typename std::vector<boost::shared_ptr<SegData> >::iterator seg_;
     PointDataVectorIter   p_;
     int                 i_;
     int                 imax_;
     IISstatus           status_;
-    SegmentDataExtPtrVectorIter seg_old_;
+    typename std::vector<boost::shared_ptr<SegData> >::iterator seg_old_;
 
 };
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
-
+template<class SegData>
 class IteratorIndexSet2{
 public:
-    IteratorIndexSet& maj()  {return maj_;}
-    IteratorIndexSet& min()  {return min_;}
+    IteratorIndexSet<SegData>& maj()  {return maj_;}
+    IteratorIndexSet<SegData>& min()  {return min_;}
     IIS2status&       status(){return status_;}
 
     bool advance(IISmode mode, IISmode dir);
-    bool advance_divergent(IteratorIndexSet &iis_out, double* ang_bounds=NULL);
+    bool advance_divergent(IteratorIndexSet<SegData> &iis_out, double* ang_bounds=NULL);
     bool advance_in_ang_bounds(double* ang_bounds);
 
-    IteratorIndexSet2(const SegmentDataExtPtrVectorPtr &_input, IISmode mode=FWD);
+    IteratorIndexSet2(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &_input, IISmode mode=FWD);
     IteratorIndexSet2(){}
+    ~IteratorIndexSet2(){}
 private:
-    IteratorIndexSet maj_;
-    IteratorIndexSet min_;
+    IteratorIndexSet<SegData> maj_;
+    IteratorIndexSet<SegData> min_;
     IIS2status       status_;
     IIS2status update_status();
 };

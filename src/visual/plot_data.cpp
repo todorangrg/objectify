@@ -2,7 +2,6 @@
 #include <opencv/cv.h>
 #include <opencv2/opencv.hpp>
 #include "utils/iterators.h"
-#include "utils/iterators_ss_tf.h"
 #include "utils/base_classes.h"
 #include "data_processing/dp.h"
 
@@ -60,8 +59,8 @@ void PlotData::plot_oult_circles(const std::vector<cv::RotatedRect>& plot_p_ell,
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void PlotData::plot_segm(const SegmentDataExtPtrVectorPtr &data,cv::Scalar color){
-    IteratorIndexSet iis(data);
+void PlotData::plot_segm(SegmentDataExtPtrVectorPtr &data,cv::Scalar color){
+    IteratorIndexSet<SegmentDataExt> iis(data);
     if(iis.status() >= IIS_VALID){
         do{
             circle(plot, w2i(tf_sns.s2r(to_xy(*iis.p()))),2,color);
@@ -80,8 +79,8 @@ void PlotData::plot_segm(const SegmentDataExtPtrVectorPtr &data,cv::Scalar color
     }
 }
 
-void PlotData::plot_segm_init(const SegmentDataPtrVectorPtr &data,cv::Scalar color){
-    IteratorIndexSet_ss_tf iis(data);
+void PlotData::plot_segm_init(SegmentDataPtrVectorPtr &data,cv::Scalar color){
+    IteratorIndexSet<SegmentData> iis(data);
     if(iis.status() >= IIS_VALID){
         do{
             circle(plot, w2i(tf_sns.s2r(to_xy(*iis.p()))),2,color);

@@ -15,8 +15,8 @@ public:
 
     void putInfoText      (const cv::string &text, double var, int row, cv::Scalar color);
     void plot_points      (const PointDataVectorPtr &data     , cv::Scalar color);
-    void plot_segm        (const SegmentDataExtPtrVectorPtr &data, cv::Scalar color);
-    void plot_segm_init(const SegmentDataPtrVectorPtr &data,cv::Scalar color);
+    void plot_segm        (SegmentDataExtPtrVectorPtr &data, cv::Scalar color);
+    void plot_segm_init(SegmentDataPtrVectorPtr &data, cv::Scalar color);
     void plot_corr_links  (const std::vector<CorrInput>& list , cv::Scalar color_o2n,cv::Scalar color_n2o);
     void plot_oult_circles(const std::vector<cv::RotatedRect>& plot_p_ell, std::vector<int>& plot_p_ell_erased, cv::Scalar color_acc,cv::Scalar color_rej);
 

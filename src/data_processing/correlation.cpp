@@ -1,8 +1,6 @@
 #include "data_processing/correlation.h"
 #include "utils/math.h"
 #include "utils/iterators.h"
-#include "utils/iterators_ss.h"
-#include "utils/iterators_ss_tf.h"
 
 Correlation::Correlation(RecfgParam &_param,PlotData& _plot_data,PlotConv& _plot_conv):
     Convolution(_param),
@@ -173,7 +171,7 @@ void Correlation::create_corr_queue(){
 void Correlation::insert_in_corr_queue(const SegmentDataExtPtr seg_p_old, const NeighDataExt& neigh_new){
     bool reverse= false;
 
-    if(seg_p_old->len > neigh_new.neigh->len){ // setting direction based on the object with smaller length
+    if(seg_p_old->getLen() > neigh_new.neigh->getLen()){ // setting direction based on the object with smaller length
         reverse = true;
     }
 
@@ -191,11 +189,11 @@ void Correlation::insert_in_corr_queue(const SegmentDataExtPtr seg_p_old, const 
         else if((new_flag_weight == it_flag_weight)&&( new_pair_prob < it_corr->stitch_perc + 0.05 )
                                                    &&( new_pair_prob > it_corr->stitch_perc - 0.05 )){//3rd sort priority on ref segment length
             double it_corr_len_ref;
-            if( it_corr->reverse ){ it_corr_len_ref = it_corr->frame_new->len; }
-            else                  { it_corr_len_ref = it_corr->frame_old->len; }
+            if( it_corr->reverse ){ it_corr_len_ref = it_corr->frame_new->getLen(); }
+            else                  { it_corr_len_ref = it_corr->frame_old->getLen(); }
             double it_new_len_ref;
-            if(reverse){ it_new_len_ref = neigh_new.neigh->len;}
-            else       { it_new_len_ref = seg_p_old->len;}
+            if(reverse){ it_new_len_ref = neigh_new.neigh->getLen();}
+            else       { it_new_len_ref = seg_p_old->getLen();}
 
             if( it_new_len_ref > it_corr_len_ref ){
                 break;
@@ -294,39 +292,22 @@ void Correlation::calc_stitch_perc(const SegmentDataPtrVectorPtr &input_ref, con
     for(SegmentDataPtrVectorIter seg_init = input_ref->begin(); seg_init != input_ref->end(); seg_init++){
         neigh_data_init[fr_status][*seg_init];
     }
-
-
     ///////////////////////////////////////////////////
-
     if((!input_ref)||(!input_spl)){
         return;
     }
     std::vector<PointDataCpy > p_array[2];
     for(SegmentDataPtrVectorIter seg = input_ref->begin(); seg != input_ref->end(); seg++){
-//        if(fr_status == FRAME_OLD){
-            for(PointDataVectorIter p = (*seg)->p_tf.begin(); p != (*seg)->p_tf.end(); p++){
-                p_array[CONV_REF].push_back(PointDataCpy(*p, *seg));
-            }
-//        }
-//        else{
-//            for(PointDataVectorIter p = (*seg)->p.begin(); p != (*seg)->p.end(); p++){
-//                p_array[CONV_REF].push_back(PointDataCpy(*p, *seg));
-//            }
-//        }
+        for(PointDataVectorIter p = (*seg)->p.begin(); p != (*seg)->p.end(); p++){
+            p_array[CONV_REF].push_back(PointDataCpy(*p, *seg));
+        }
     }
     std::sort(p_array[CONV_REF].begin(), p_array[CONV_REF].end(), ang_sort_func);
 
     for(SegmentDataPtrVectorIter seg = input_spl->begin(); seg != input_spl->end(); seg++){
-//        if(fr_status == FRAME_OLD){
-//            for(PointDataVectorIter p = (*seg)->p.begin(); p != (*seg)->p.end(); p++){
-//                p_array[CONV_SPL].push_back(PointDataCpy(*p, *seg));
-//            }
-//        }
-//        else{
-            for(PointDataVectorIter p = (*seg)->p_tf.begin(); p != (*seg)->p_tf.end(); p++){
-                p_array[CONV_SPL].push_back(PointDataCpy(*p, *seg));
-            }
-//        }
+        for(PointDataVectorIter p = (*seg)->p.begin(); p != (*seg)->p.end(); p++){
+            p_array[CONV_SPL].push_back(PointDataCpy(*p, *seg));
+        }
     }
     std::sort(p_array[CONV_SPL].begin(), p_array[CONV_SPL].end(), ang_sort_func);
 
@@ -335,16 +316,13 @@ void Correlation::calc_stitch_perc(const SegmentDataPtrVectorPtr &input_ref, con
 //        return;
 //    }
 
-
-    const int POS = 1;
-    const int NEG = 0;
+    const int POS = 1; const int NEG = 0;
 
     int i_b[2] = {0, 0};
     for(std::vector<PointDataCpy>::iterator p_ref = p_array[CONV_REF].begin(); p_ref != p_array[CONV_REF].end(); p_ref++){
         double circle_rad = neigh_circle_rad;
         double ang_bounds[2];
         angular_bounds(*p_ref,circle_rad, ang_bounds);
-
 
         if(i_b[NEG] < 0 ){ i_b[NEG] = 0; }
         if(i_b[NEG] > p_array[CONV_SPL].size() - 1){ i_b[NEG] = p_array[CONV_SPL].size() - 1; }
@@ -358,6 +336,7 @@ void Correlation::calc_stitch_perc(const SegmentDataPtrVectorPtr &input_ref, con
             while(p_array[CONV_SPL][i_b[NEG]].angle < ang_bounds[0]){i_b[NEG]++;}
             i_b[POS] = i_b[NEG];
         }
+        //TODO HERE CHECK IF TARGET IS NOT OUT OF CIRCLE BOUNDS
         bool found_one = false;
         PointData p_min;
         SegmentDataPtr seg_min;
@@ -464,7 +443,7 @@ void Correlation::debug_cout_corr_queue(std::vector<CorrInput>& corr_queue){
         debug_cout_segment(*it_corr->frame_new,false);
         std::cout<<"   "<<std::setw(5)<<it_corr->stitch_perc*100.0<<"%";
 
-        std::cout<<"  l(t-1):"<<std::setw(6)<<it_corr->frame_old->len<<" l( t ):"<<std::setw(6)<<it_corr->frame_new->len;
+        std::cout<<"  l(t-1):"<<std::setw(6)<<it_corr->frame_old->getLen()<<" l( t ):"<<std::setw(6)<<it_corr->frame_new->getLen();
         std::cout<<std::endl;
     }
     std::cout.precision(6);
