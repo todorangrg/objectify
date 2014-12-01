@@ -127,12 +127,13 @@ add_library(${ALIAS}_utils_lib
   src/utils/base_classes.cpp
   src/utils/math.cpp 
   src/utils/iterators.cpp
+  src/utils/iterators_ss.cpp
+  src/utils/iterators_ss_tf.cpp
   src/utils/kalman.cpp
   src/utils/convolution.cpp
   ${UTILS_HEADERS}
 )
 target_link_libraries(${ALIAS}_utils_lib
-  ${POINTMATCHER_LIBRARIES}
   ${OpenCV_LIBS}
   ${catkin_LIBRARIES}
 )

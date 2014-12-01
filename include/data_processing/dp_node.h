@@ -28,7 +28,7 @@ public:
     bool frame2frame_callback;
     double frame2frame_deltaT;
 
-    SensorFrame callback_odom_laser_data;
+    InputData callback_odom_laser_data;
     void callback_odom_laser(const nav_msgs::OdometryConstPtr &_odom, const sensor_msgs::LaserScanConstPtr &_laser);
     void callbackParameters ( objectify::objectify_paramConfig &config , uint32_t level );
 

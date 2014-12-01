@@ -19,15 +19,15 @@ Preprocessing::Preprocessing(RecfgParam &_param, PlotData& _plot):
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void Preprocessing::plot_data(SensorData& sensor, cv::Scalar color_raw, cv::Scalar color_preproc, cv::Scalar color_outl_acc,cv::Scalar color_outl_rej){
-    if(sensor.status == NO_FRAME){
+void Preprocessing::plot_data(InputData& input, cv::Scalar color_raw, cv::Scalar color_preproc, cv::Scalar color_outl_acc,cv::Scalar color_outl_rej){
+    if(!input.is_valid){
         return;
     }
     if(plot_data_raw){
-        plot.plot_points(sensor.frame_new->sensor_raw,color_raw);
+        plot.plot_points(input.sensor_raw,color_raw);
     }
     if(plot_data_preproc){
-        plot.plot_points(sensor.frame_new->sensor_filtered,color_preproc);
+        plot.plot_points(input.sensor_filtered,color_preproc);
     }
     if(plot_oult_preproc){
         plot.plot_oult_circles(plot_p_ell,plot_p_ell_erased,color_outl_acc,color_outl_rej);
@@ -36,16 +36,16 @@ void Preprocessing::plot_data(SensorData& sensor, cv::Scalar color_raw, cv::Scal
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void Preprocessing::run(SensorData& sensor){
-    if(sensor.status == NO_FRAME){
+void Preprocessing::run(InputData &input){
+    if(!input.is_valid){
         return;
     }
     if( filter_input == true ){
-        filter(sensor.frame_new->sensor_raw, sensor.frame_new->sensor_filtered);
-        erase_outl(sensor.frame_new->sensor_filtered, sensor.frame_new->sensor_filtered, plot_oult_preproc);
+        filter(input.sensor_raw, input.sensor_filtered);
+        erase_outl(input.sensor_filtered, input.sensor_filtered, plot_oult_preproc);
     }
     else{
-        erase_outl(sensor.frame_new->sensor_raw, sensor.frame_new->sensor_filtered, plot_oult_preproc);
+        erase_outl(input.sensor_raw, input.sensor_filtered, plot_oult_preproc);
     }   
 }
 

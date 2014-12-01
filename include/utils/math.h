@@ -6,6 +6,7 @@
 #include <math.h>
 
 class PointData;
+class PointDataCpy;
 typedef cv::Point2d xy;
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -107,6 +108,7 @@ inline double diff(xy p1,    xy p2   ){return sqrt(sqr(p1.x - p2.x) + sqr(p1.y -
 
 void angular_bounds(polar p       , double circle_rad, double* search_angle);
 void angular_bounds(PointData &p, double circle_rad, double* search_angle);
+void angular_bounds(PointDataCpy &p,double circle_rad, double* search_angle);
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 

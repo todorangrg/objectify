@@ -321,9 +321,12 @@ void PlotConv::plot_conv_points(std::vector<boost::shared_ptr<ConvolInfo> > &con
         if(conv_stat == CONV_SPL){ color = red;}
         else                     { color = blue; }
         s.precision(4);
-        s <<"  S:"<<conv_data[conv_stat]->seg->id<<"|O:"<<conv_data[conv_stat]->seg->parrent->parrent->id;
-        if(conv_data[conv_stat]->seg->parrent->parrent->fr_stat == FRAME_OLD){s<<" t-1";}
-        else                                                                 {s<<"  t ";}
+        s <<"  S:"<<conv_data[conv_stat]->seg->id<<"|O:";
+        if(conv_data[conv_stat]->seg->getObj()){
+            s<<conv_data[conv_stat]->seg->getObj()->id;
+        }
+        if(conv_data[conv_stat]->seg->getObj()){s<<" t-1";}
+        else                                   {s<<"  t ";}
         putText(plot,s.str().c_str(),w2i(conv_data[conv_stat]->com),FONT_HERSHEY_PLAIN,1,color);s.str(std::string());
 
         for(int j=0; j < conv_data[conv_stat]->tf->size(); j++){
@@ -333,9 +336,12 @@ void PlotConv::plot_conv_points(std::vector<boost::shared_ptr<ConvolInfo> > &con
             else                     { color = red; }
 
             s.precision(4);
-            s <<"  S:"<<conv_data[conv_stat]->tf->at(j).seg->id<<"|O:"<<conv_data[conv_stat]->tf->at(j).seg->parrent->parrent->id;
-            if(conv_data[conv_stat]->tf->at(j).seg->parrent->parrent->fr_stat == FRAME_OLD){s<<" t-1";}
-            else                                                                           {s<<"  t ";}
+            s <<"  S:"<<conv_data[conv_stat]->tf->at(j).seg->id<<"|O:";
+            if(conv_data[conv_stat]->tf->at(j).seg->getObj()){
+                s<<conv_data[conv_stat]->tf->at(j).seg->getObj()->id;
+            }
+            if(conv_data[conv_stat]->tf->at(j).seg->getObj()){s<<" t-1";}
+            else                                             {s<<"  t ";}
             s<<"w= "<<conv_data[conv_stat]->tf->at(j).score;
             putText(plot,s.str().c_str(),w2i(conv_data[conv_stat]->com + conv_data[conv_stat]->tf->at(j).tf.xy_mean),FONT_HERSHEY_PLAIN,1,color);s.str(std::string());
 

@@ -8,8 +8,8 @@ class PlotData;
 class Preprocessing{
 
 public:
-    void run(SensorData& sensor);
-    void plot_data(SensorData& sensor, cv::Scalar color_raw, cv::Scalar color_preproc, cv::Scalar color_outl_acc,cv::Scalar color_outl_rej);
+    void run(InputData& input);
+    void plot_data(InputData& input, cv::Scalar color_raw, cv::Scalar color_preproc, cv::Scalar color_outl_acc,cv::Scalar color_outl_rej);
 
     //Constructors
     Preprocessing(RecfgParam &_param, PlotData& _plot);

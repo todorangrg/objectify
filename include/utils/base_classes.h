@@ -5,6 +5,7 @@
 #include <vector>
 #include <list>
 #include "boost/shared_ptr.hpp"
+#include "boost/variant.hpp"
 #include "opencv/cv.h"
 #include "utils/math.h"
 
@@ -54,34 +55,54 @@ typedef boost::shared_ptr<ObjectData>                 ObjectDataPtr;
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 enum CorrFlag{
-    CORR_121,
-    CORR_12MANY,
-    CORR_MANY21,
-    CORR_NOINNV,
-    CORR_NEWOBJ
+    CORR_121 = 0,
+    CORR_12MANY = 1
 };
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
-
-enum SensorDataStatus{
-    NO_FRAME,
-    NEW_FRAME,
-    OLD_FRAME
-};
-
-enum FrameStatus{
-    FRAME_NEW,
-    FRAME_OLD
-};
 
 enum ConvolStatus{
     CONV_REF,
     CONV_SPL
 };
 
+///------------------------------------------------------------------------------------------------------------------------------------------------///
 
+enum FrameStatus{
+    FRAME_NEW,
+    FRAME_OLD
+};
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
+
+enum CorrPairFlag{
+    CORR_NO_CORR_NEW,
+    CORR_NO_CORR_OLD,
+    CORR_SINGLE2,
+    CORR_SINGLE1MULTI1,
+    CORR_MULTI2
+};
+
+enum CorrList{
+    INIT,
+    EXT
+};
+
+class NeighDataInit{
+public:
+    SegmentDataPtr neigh;
+    double         prob_fwd;
+    double         prob_rev;
+    NeighDataInit(SegmentDataPtr _neigh, double _prob_fwd, double _prob_rev): neigh(_neigh), prob_fwd(_prob_fwd), prob_rev(_prob_rev){}
+};
+class NeighDataExt{
+public:
+    SegmentDataExtPtr neigh;
+    double         prob_fwd;
+    double         prob_rev;
+    NeighDataExt(SegmentDataExtPtr _neigh, double _prob_fwd, double _prob_rev): neigh(_neigh), prob_fwd(_prob_fwd), prob_rev(_prob_rev){}
+};
+
 
 class RecfgParam{
 public:
@@ -159,9 +180,45 @@ public:
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
+class RState{
+public:
+    double xx; double xy; double xphi;
+    RState(cv::Mat _S);
+    RState(double _x, double _y, double _ang) : xx(_x),xy(_y),xphi(_ang){}
+    RState(){}
+};
+
+class KInp {
+public:
+    double v;  /// vorwaerts geschwindigkeit m/sec
+    double w;  /// winkel geschwindigkeit in rad/sec
+    double dt;
+    KInp(double _v, double _w, double _dt) : v(_v),w(_w),dt(_dt){}
+    KInp(double _v, double _w) : v(_v),w(_w){}
+    KInp(){}
+};
+
+class OiState{
+public:
+    double xx; double xy; double xphi;
+    double vx; double vy; double vphi;
+    double ax; double ay; double aphi;
+    OiState(cv::Mat _S_O);
+    OiState(){}
+};
+
+class KObjZ{
+public:
+    xy     pos;
+    double phi;
+    cv::Matx33d Q;
+};
+
+///------------------------------------------------------------------------------------------------------------------------------------------------///
+
 class FrameTf{///TODO DISCARD AND USE TF LIBRARY
 public:
-    void init(SensorFrame &laser_new, SensorFrame &laser_old);
+    void init(RState rob_x, RState rob_bar_x);
     xy rn2ro(double _x, double _y);
     xy ro2rn(double _x, double _y);
     xy rn2ro(const xy &_p) {
@@ -196,49 +253,29 @@ private:
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-struct State {
-    double x;  /// x position
-    double y;  /// y position
-    double angle;  /// angle
-    void set(double _x, double _y, double _angle) { x = _x, y = _y,  angle = _angle; }
-    xy position() { return xy(x,y); }
-};
-
-struct Command {
-    double v;  /// vorwaerts geschwindigkeit m/sec
-    double w;  /// winkel geschwindigkeit in rad/sec
-    void set(double _v, double _w) {
-        v = _v, w = _w;
-    };
-};
-
-
-class KControl{
-public:
-    double v;
-    double w;
-    double dt;
-    KControl(Command _u, double _dt):v(_u.v),w(_u.w),dt(_dt){}
-    KControl(double _v, double _w, double _dt):v(_v),w(_w),dt(_dt){}
-};
-
-class KObjZ{
-public:
-    xy     pos;
-    double phi;
-    cv::Matx33d Q;
-};
-
-///------------------------------------------------------------------------------------------------------------------------------------------------///
-
 class PointData{
 public:
     double r;
     double angle;
+    boost::weak_ptr<SegmentDataExt> child;
+    boost::weak_ptr<SegmentData>    neigh;
 
     //Constructors
     PointData()       : r(0.0), angle(0.0)    {}
     PointData(polar p): r(p.r), angle(p.angle){}
+    ~PointData(){}
+};
+
+class PointDataCpy{
+public:
+    double r;
+    double angle;
+    PointData    p_parrent;
+    SegmentDataPtr s_parrent;
+
+    //Constructors
+    PointDataCpy(PointData p,SegmentDataPtr _s_parrent): r(p.r), angle(p.angle), p_parrent(p), s_parrent(_s_parrent){}
+    ~PointDataCpy(){}
 };
 
 class PointDataSample : public PointData{
@@ -253,6 +290,7 @@ public:
 };
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
+
 class TfVar{
 public:
     xy             com;     // icp com of parrent (xy), angle = 0
@@ -268,6 +306,7 @@ public:
 };
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
+
 class TFdata{
 public:
     SegmentDataExtPtr seg;    // segment of neighbour
@@ -277,6 +316,7 @@ public:
     TfVar          tf_inv;    // inverse tf (from neighbour to this)
     TFdata(SegmentDataExtPtr _seg, ConvolStatus   _conv_stat, double _score):seg(_seg),conv_stat(_conv_stat),score(_score){}
     TFdata(SegmentDataExtPtr _seg, ConvolStatus   _conv_stat, double _score, TfVar _tf, TfVar _tf_inv):seg(_seg),conv_stat(_conv_stat),score(_score),tf(_tf),tf_inv(_tf_inv){}
+    TFdata(){}
 };
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -299,39 +339,76 @@ public:
 
 class ObjectData{
 public:
-    FrameStatus fr_stat;
     int         id;
+    bool solved;
     //Constructors
-     ObjectData(FrameStatus _fr_stat, int _id):fr_stat(_fr_stat), id(_id){}
+     ObjectData(int _id): id(_id),solved(true){}
 };
 
-class SegmentData{
-public:
-    int id;
-    boost::shared_ptr< ObjectData > parrent;
-    PointDataVector p;
-    xy com;
+///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-    //Constructors
-    SegmentData(boost::shared_ptr<ObjectData> _parrent, int _id);
-};
+//typedef boost::variant<ObjectDataPtr, SegmentDataPtr> ObjSegVarnt;
 
-class SegmentDataExt{
+class SegmentDataBase{
 public:
-    int id;
-    boost::shared_ptr< SegmentData > parrent;
+    int id;//only for debug
     PointDataVector p;
-    double len;
-    boost::shared_ptr<ConvData> conv;
+    ObjectDataPtr getObj()                  {return obj;}
+    void          setObj(ObjectDataPtr _obj){obj = _obj;}
+    xy            getCom()                  {return com;}
+    void          setCom(xy _com)           {com = _com;}
 
     CorrFlag corr_flag;
 
+    bool solved;
+
+    //virtual ObjSegVarnt  getParrent() = 0;
+    //virtual void setParrent(ObjSegVarnt) = 0;
+
+    SegmentDataBase(int _id): id(_id), corr_flag(CORR_121),solved(false){}
+    SegmentDataBase(ObjectDataPtr _obj, int _id): obj(_obj), id(_id), corr_flag(CORR_121),solved(false){}
+    SegmentDataBase(ObjectDataPtr _obj, int _id, CorrFlag _cf): obj(_obj), id(_id), corr_flag(_cf),solved(false){}
+    ~SegmentDataBase(){}
+protected:
+    ObjectDataPtr obj;
+    xy com;
+};
+
+///------------------------------------------------------------------------------------------------------------------------------------------------///
+
+class SegmentData : public SegmentDataBase{
+public:
+    ObjectDataPtr getParrent()                {return obj;}
+    void        setParrent(ObjectDataPtr _obj){obj = _obj;}
+
+    double len;
+    PointDataVector p_tf;
     //Constructors
-    SegmentDataExt(const boost::shared_ptr<SegmentData> _parrent);
-    SegmentDataExt(const SegmentDataExt& _seg);
-    SegmentDataExt(const SegmentDataExtPtrVectorIter& _seg);
-    SegmentDataExt(const SegmentDataExtPtrVectorIter& _seg, int _id);
+    SegmentData(ObjectDataPtr _obj, int _id) : SegmentDataBase(_obj,_id){}
+    SegmentData(int _id) : SegmentDataBase(_id){}
+    SegmentData(SegmentDataPtrVectorIter& _seg, int _id): SegmentDataBase((*_seg)->getObj(), _id), len((*_seg)->len){}
+    SegmentData(SegmentDataPtrVectorIter& _seg): SegmentDataBase((*_seg)->getObj(), (*_seg)->id), len((*_seg)->len){}
+};
+
+///------------------------------------------------------------------------------------------------------------------------------------------------///
+
+class SegmentDataExt : public SegmentDataBase{
+public:
+    double len;
+    boost::shared_ptr<ConvData> conv;
+
+    SegmentDataPtr getParrent()                    {return parrent;}
+    void        setParrent(SegmentDataPtr _parrent){parrent = _parrent;}
+
+
+    //Constructors
+    SegmentDataExt(SegmentDataPtr _seg, int _id)         : SegmentDataBase(_seg->getObj()  , _id, CORR_121)       , parrent(_seg){}
+    SegmentDataExt(SegmentDataExt& _segext)              : SegmentDataBase(_segext.getObj(), _segext.id, _segext.corr_flag),len(_segext.len),parrent(_segext.getParrent()){}
+    SegmentDataExt(SegmentDataExtPtrVectorIter& _segext) : SegmentDataBase((*_segext)->getObj(), (*_segext)->id, (*_segext)->corr_flag),len((*_segext)->len),parrent((*_segext)->getParrent()){}
+    SegmentDataExt(SegmentDataExtPtrVectorIter& _segext, int _id): SegmentDataBase((*_segext)->getObj(), _id, (*_segext)->corr_flag),len((*_segext)->len),parrent((*_segext)->getParrent()){}
     SegmentDataExt& operator= (const SegmentDataExt & seg);
+private:
+    SegmentDataPtr parrent;
 };
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -349,44 +426,21 @@ public:
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-class SensorFrame{
+class InputData{
 public:
-    State                rob_x;
-    Command              rob_vel;
+    bool is_valid;
+    ros::Time time_stamp;
+    RState    rob_x;
+    KInp      u;
 
-    ros::Time            time_stamp;
-    ros::Duration        past_time;
     PointDataVectorPtr   sensor_raw;
     PointDataVectorPtr   sensor_filtered;
-
     SegmentDataPtrVectorPtr    seg_init;
     SegmentDataExtPtrVectorPtr seg_ext;
 
     //Constructors
-    SensorFrame(State _rob_x,Command _rob_vel, ros::Time _time_stamp,PointDataVectorPtr &input);
-    SensorFrame(){}
-};
-
-///------------------------------------------------------------------------------------------------------------------------------------------------///
-
-class SensorData{
-public:
-    std::list<SensorFrame>::iterator frame_new;
-    std::list<SensorFrame>::iterator frame_old;
-    SensorDataStatus status;
-    boost::shared_ptr<std::vector<boost::shared_ptr<ObjectData> > > objects;
-
-    void push_back_frame  (SensorFrame _new, KalmanSLDM &k);
-    void push_virtual_time(double virtual_time);
-    FrameTf& get_tf(){ return tf_frm; }
-
-    //Constructors
-    SensorData(RecfgParam& _param);
-private:
-    int& sensor_data_catched_cycles;
-    bool& true_rob_pos;
-    std::list<SensorFrame> sensor_history;
-    FrameTf tf_frm;
+    InputData(PointDataVectorPtr &input, RState _rob_x, KInp _u, ros::Time _time_stamp);
+    InputData():is_valid(false){}
 };
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///

@@ -201,6 +201,10 @@ void angular_bounds(PointData &p,double circle_rad, double* search_angle){
     return angular_bounds(polar(p.r,p.angle),circle_rad,search_angle);
 }
 
+void angular_bounds(PointDataCpy &p,double circle_rad, double* search_angle){
+    return angular_bounds(polar(p.r,p.angle),circle_rad,search_angle);
+}
+
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 

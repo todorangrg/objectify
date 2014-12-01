@@ -1,4 +1,4 @@
-#include "utils/iterators.h"
+#include "utils/iterators_ss.h"
 #include "utils/base_classes.h"
 #include "utils/math.h"
 
@@ -12,14 +12,14 @@ using namespace std;
  * @param mode FWD (iterators are initialized on first segment, first point,i = 0) or
  *             REV  (iterators are initialized on last segment , last point ,i = total number of points - 1)
  **/
-IteratorIndexSet::IteratorIndexSet(const SegmentDataExtPtrVectorPtr &_input,IISmode mode){
+IteratorIndexSet_ss::IteratorIndexSet_ss(const SegmentDataPtrVectorPtr &_input,IISmode mode){
     if(!_input){
         status_ = IIS_INVALID;
         return;
     }
     input_=_input;
     imax_=-1;
-    for(SegmentDataExtPtrVectorIter seg_sum=input_->begin();seg_sum!=input_->end();seg_sum++){
+    for(SegmentDataPtrVectorIter seg_sum=input_->begin();seg_sum!=input_->end();seg_sum++){
         imax_+=(*seg_sum)->p.size();
     }
     if(imax_ != -1){
@@ -49,7 +49,7 @@ IteratorIndexSet::IteratorIndexSet(const SegmentDataExtPtrVectorPtr &_input,IISm
  *         IIS_P_RBEGIN  : - point iterator   is in last position
  *         IIS_VALID     : - else
  **/
-IISstatus IteratorIndexSet::update_status(){
+IISstatus IteratorIndexSet_ss::update_status(){
     if( imax_ == -1 ){
         return status_=IIS_INVALID;
     }
@@ -92,7 +92,7 @@ IISstatus IteratorIndexSet::update_status(){
  *               - advanced segment iterator points to end/rend of list
  *         true  - else
  **/
-bool IteratorIndexSet::advance(IISmode mode, IISmode dir){
+bool IteratorIndexSet_ss::advance(IISmode mode, IISmode dir){
     if( dir == INC ){
         if(( status_ == IIS_INVALID )||(status_ == IIS_SEG_END)){
             return false;
@@ -149,9 +149,9 @@ bool IteratorIndexSet::advance(IISmode mode, IISmode dir){
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void IteratorIndexSet::push_bk(SegmentDataExtPtrVectorPtr &output, PointData val,bool &split_segment){
+void IteratorIndexSet_ss::push_bk(SegmentDataPtrVectorPtr &output, PointData val,bool &split_segment){
     if(( seg_ != seg_old_ )||(split_segment)){
-        output->push_back(SegmentDataExtPtr(new SegmentDataExt(seg_,output->size())));
+        output->push_back(SegmentDataPtr(new SegmentData(seg_,output->size())));
     }
     output->back()->p.push_back(val);
     split_segment=false;
@@ -164,9 +164,9 @@ void IteratorIndexSet::push_bk(SegmentDataExtPtrVectorPtr &output, PointData val
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void IteratorIndexSet::push_bk(SegmentDataExtPtrVectorPtr &output, PointData val){
+void IteratorIndexSet_ss::push_bk(SegmentDataPtrVectorPtr &output, PointData val){
     if(( seg_ != seg_old_ )){
-        output->push_back(SegmentDataExtPtr(new SegmentDataExt(seg_)));
+        output->push_back(SegmentDataPtr(new SegmentData(seg_)));
     }
     output->back()->p.push_back(val);
     seg_old_ = seg_;
@@ -178,7 +178,7 @@ void IteratorIndexSet::push_bk(SegmentDataExtPtrVectorPtr &output, PointData val
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void IteratorIndexSet::pop_bk(SegmentDataExtPtrVectorPtr &output){
+void IteratorIndexSet_ss::pop_bk(SegmentDataPtrVectorPtr &output){
     if(output->size() >0 ){
         if(output->back()->p.size() >0 ){
             output->back()->p.pop_back();
@@ -196,7 +196,7 @@ void IteratorIndexSet::pop_bk(SegmentDataExtPtrVectorPtr &output){
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-bool IteratorIndexSet::erase(){
+bool IteratorIndexSet_ss::erase(){
     p_=(*seg_)->p.erase(p_);
     if((*seg_)->p.size() == 0){
         seg_=input_->erase(seg_);
@@ -208,13 +208,13 @@ bool IteratorIndexSet::erase(){
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-IteratorIndexSet2::IteratorIndexSet2(const SegmentDataExtPtrVectorPtr &_input,IISmode mode){
-    maj_= IteratorIndexSet(_input,mode);
-    min_= IteratorIndexSet(_input,mode);
+IteratorIndexSet2_ss::IteratorIndexSet2_ss(const SegmentDataPtrVectorPtr &_input,IISmode mode){
+    maj_= IteratorIndexSet_ss(_input,mode);
+    min_= IteratorIndexSet_ss(_input,mode);
     update_status();
 }
 
-IIS2status IteratorIndexSet2::update_status(){
+IIS2status IteratorIndexSet2_ss::update_status(){
     if(((min_.status() == IIS_INVALID )&&(maj_.status() == IIS_INVALID))||
        ((min_.status() == IIS_SEG_END )&&(maj_.status() == IIS_SEG_END))){
         return status_=IIS2_INVALID;
@@ -238,7 +238,7 @@ IIS2status IteratorIndexSet2::update_status(){
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-bool IteratorIndexSet2::advance(IISmode mode, IISmode dir){
+bool IteratorIndexSet2_ss::advance(IISmode mode, IISmode dir){
     if((( dir == INC )&&( maj_.status() == IIS_SEG_END )&&( min_.status() != IIS_SEG_END ))||
        (( dir == DEC )&&( min_.status() == IIS_SEG_END )&&( maj_.status() != IIS_SEG_END ))){
         return false;
@@ -260,7 +260,7 @@ bool IteratorIndexSet2::advance(IISmode mode, IISmode dir){
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-bool IteratorIndexSet2::advance_divergent(IteratorIndexSet &iis_out, double* ang_bounds){
+bool IteratorIndexSet2_ss::advance_divergent(IteratorIndexSet_ss &iis_out, double* ang_bounds){
     static bool flip_inc   = true;
     flip_inc = !flip_inc;
     if(((min_.status() >= IIS_VALID)&&( flip_inc ))||((min_.status() >= IIS_VALID)&&(maj_.status() < IIS_VALID))){
@@ -305,7 +305,7 @@ bool IteratorIndexSet2::advance_divergent(IteratorIndexSet &iis_out, double* ang
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-bool IteratorIndexSet2::advance_in_ang_bounds(double* ang_bounds){
+bool IteratorIndexSet2_ss::advance_in_ang_bounds(double* ang_bounds){
     update_status();
     if((maj_.status() == IIS_SEG_END)&&(min_.status() == IIS_SEG_REND)){
         min_.advance(ALL_SEGM,INC);

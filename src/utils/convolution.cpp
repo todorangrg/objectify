@@ -29,11 +29,6 @@ void Convolution::runConvolution(){
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 bool Convolution::create_normal_database(CorrInput& pair){
-
-    if(( pair.frame_old->corr_flag == CORR_NOINNV )||( pair.frame_old->corr_flag == CORR_NEWOBJ )){
-        sample_const_dist(pair.frame_new,CONV_REF);
-        return false;
-    }
     if(pair.reverse){
         sample_const_dist(pair.frame_new,CONV_REF);
         sample_const_dist(pair.frame_old,CONV_SPL);

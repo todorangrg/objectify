@@ -14,7 +14,7 @@ class DataProcessing{
 public:
 
 
-    SensorData    sensor;
+    InputData     input;
     Preprocessing preprocessing;
     Segmentation  segmentation;
     Correlation   correlation;

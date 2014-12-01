@@ -25,12 +25,14 @@ int main( int argc , char **argv ) {
     while ( ros::ok() ) {
         t0 = ros::Time::now();
 
-        dp.k.advance(dp.sensor,dp.new_data);
+
         if(dp.new_data){
 
-            dp.sensor.push_back_frame(dp.callback_odom_laser_data, dp.k);
+            dp.input = dp.callback_odom_laser_data;
         }
+        dp.k.advance(dp.input,dp.new_data);
         dp.run(dp.new_data);
+        dp.k.time_stamp = dp.input.time_stamp;
         dp.new_data = false;
 
         plot_data.putInfoText("[ms]Full cycle time = ",(ros::Time::now() - t0).toNSec()* 1e-6,3,plot_data.black);//does not freeze value in step sim mode
@@ -152,8 +154,8 @@ void DataProcessingNode::callbackParameters (objectify::objectify_paramConfig &c
 
 void DataProcessingNode::callback_odom_laser(const nav_msgs::OdometryConstPtr &_odom , const sensor_msgs::LaserScanConstPtr &_laser ){
     //new_data= true;
-    State stateOdom;
-    stateOdom.set(_odom->pose.pose.position.x, _odom->pose.pose.position.y, quaternion2Angle2D(_odom->pose.pose.orientation));
+    RState stateOdom(_odom->pose.pose.position.x, _odom->pose.pose.position.y, quaternion2Angle2D(_odom->pose.pose.orientation));
+    //RState stateOdom(0,0,0);
 
     PointDataVectorPtr laser_raw_now( new PointDataVector );
 
@@ -166,13 +168,17 @@ void DataProcessingNode::callback_odom_laser(const nav_msgs::OdometryConstPtr &_
             laser_raw_now->push_back( polar( laser_i, _laser->angle_min + ( _laser->angle_increment * i ) ) );
         }
     }
-    State stateOdomnull;
-    Command vel;
-    vel.set(_odom->twist.twist.linear.x,_odom->twist.twist.angular.z);
-//    stateOdomnull.set(0,0,0);
-    stateOdomnull = stateOdom;
-//    std::cout<<_odom->header.stamp.toSec() - _laser->header.stamp.toSec()<<std::endl;
-    callback_odom_laser_data = SensorFrame( stateOdomnull, vel, _odom->header.stamp.now()  , laser_raw_now);
+    KInp vel(_odom->twist.twist.linear.x,_odom->twist.twist.angular.z);
+    double alpha_motion_[4];
+    alpha_motion_[0] = 0.1;//;
+    alpha_motion_[1] = 0.05;//;
+    alpha_motion_[2] = 0.05;//;
+    alpha_motion_[3] = 0.1;//;
+
+    Distributions noise;
+    vel.v += noise.normalDist(0, alpha_motion_[0] * sqr(vel.v) + alpha_motion_[1] * sqr(vel.w));
+    vel.w += noise.normalDist(0, alpha_motion_[2] * sqr(vel.v) + alpha_motion_[3] * sqr(vel.w));//noising the input
+    callback_odom_laser_data = InputData(laser_raw_now, stateOdom, vel, _odom->header.stamp.now());
     param.cb_sensor_point_angl_inc=_laser->angle_increment;
     param.cb_sensor_point_angl_max=_laser->angle_max;
     param.cb_sensor_point_angl_min=_laser->angle_min;

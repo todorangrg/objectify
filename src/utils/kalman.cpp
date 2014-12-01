@@ -1,24 +1,14 @@
 #include "utils/kalman.h"
 #include "data_processing/correlation.h"
+#include "visual/plot.h"
 
 using namespace cv;
 using namespace std;
 //TODO include displacement of the sensor in the model
 
-OiState::OiState(cv::Mat _S_O):
-    xx(_S_O.at<double>(0)), xy(_S_O.at<double>(1)), xphi(_S_O.at<double>(2)),
-    vx(_S_O.at<double>(3)), vy(_S_O.at<double>(4)), vphi(_S_O.at<double>(5)),
-    ax(_S_O.at<double>(6)), ay(_S_O.at<double>(7)), aphi(_S_O.at<double>(8)){}
-
-///------------------------------------------------------------------------------------------------------------------------------------------------///
-
-RState::RState(cv::Mat _S):
-    xx(_S.at<double>(0)), xy(_S.at<double>(1)), xphi(_S.at<double>(2)){}
-
-///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 
-//TODO : THIS IS VERY INEFFICIENT AND NINJA DONE, MAKE IT "NEAT"
+
 
 
 class NeighDatasimple{
@@ -31,87 +21,29 @@ public:
 
 
 
-void KalmanSLDM::advance(SensorData& sensor, bool advance){//TODO deal with "this only if "timeout done / covariance of reprediction too big" : check it in the old sensor frame, in the no_innovation flag and move them in new frame
+void KalmanSLDM::advance(InputData &input, bool advance){//TODO deal with "this only if "timeout done / covariance of reprediction too big" : check it in the old sensor frame, in the no_innovation flag and move them in new frame
     if(advance){
-        if(!pos_init){
-            return;
-        }
+//        if(Oi.size() > 0){
+//            seg_init = seg_init_plus;
+//        }
+
+        //TODO : correct and tf all points after the update stuff
+        update_sub_mat();
+        input.u.dt = (input.time_stamp - time_stamp).toSec();
+
         S_R_bar_old = Mat(S_R_bar.rows,S_R_bar.cols,CV_64F); S_R_bar.copyTo(S_R_bar_old);
         S_old = Mat(S.rows,S.cols,CV_64F); S.copyTo(S_old);
         P_old = Mat(P.rows,P.cols,CV_64F); P.copyTo(P_old);
         Oi_old = Oi;
-        for(int j=0;j<sensor.frame_new->seg_ext->size();j++){
-            for(int i=0;i<adv_erase_obj.size();i++){
-                if( adv_erase_obj.at(i) ==  sensor.frame_new->seg_ext->at(j)->parrent->parrent){
-                    for(int k=0;k<sensor.objects->size();k++){
-                        if( adv_erase_obj.at(i) ==  sensor.objects->at(j)){
-                            sensor.objects->erase(sensor.objects->begin() + k);
-                            break;
-                        }
-                    }
-                    break;
+        if(Oi.size() > 0){
+            //seg_init_old = seg_init;
+            seg_init_old = SegmentDataPtrVectorPtr ( new SegmentDataPtrVector);
+            for(SegmentDataPtrVectorIter ss = seg_init->begin(); ss != seg_init->end(); ss++){
+                seg_init_old->push_back(SegmentDataPtr(new  SegmentData(ss)));
+                for(PointDataVectorIter pp = (*ss)->p.begin(); pp != (*ss)->p.end(); pp++){
+                    seg_init_old->back()->p.push_back(*pp);
                 }
             }
-            sensor.frame_new->seg_ext->at(j)->parrent->parrent.reset();
-            if(seg_ext_new_obj.count(sensor.frame_new->seg_ext->at(j)) != 0){ //assigning new parrent value
-                sensor.frame_new->seg_ext->at(j)->parrent->parrent = seg_ext_new_obj[sensor.frame_new->seg_ext->at(j)];
-            }
-            else{
-                int ind_er = 0;
-                for(int i=0;i<sensor.frame_new->seg_init->size();i++){
-                    if(sensor.frame_new->seg_ext->at(j)->parrent == sensor.frame_new->seg_init->at(i)){
-                        ind_er = i;
-                    }
-                }
-                sensor.frame_new->seg_init->erase(sensor.frame_new->seg_init->begin() + ind_er);
-            }
-        }
-        for(int i=0;i<adv_no_innv_seg.size();i++){
-            std::vector<NeighDatasimple> neighbours;
-            for(PointDataVectorIter   p_ref=adv_no_innv_seg.at(i)->p.begin();p_ref!=adv_no_innv_seg.at(i)->p.end();p_ref++){
-                double circle_rad = 0.5;//////?!!!!!!!!!!!!!!!!!
-                double ang_bounds[2];
-                angular_bounds(*p_ref,circle_rad, ang_bounds);
-                SegmentDataPtrVectorIter seg_min = sensor.frame_new->seg_init->end();
-                bool found_one = false;
-                for(int k=0;k<sensor.frame_new->seg_init->size();k++){
-                    for(int kk = 0;kk<sensor.frame_new->seg_init->at(k)->p.size();kk++){
-                        if( diff( sensor.frame_new->seg_init->at(k)->p.at(kk) , *p_ref ) <= circle_rad ){
-                            circle_rad = diff( sensor.frame_new->seg_init->at(k)->p.at(kk) , *p_ref );//retine iteratorul minim intro var sa o inserezi jos vv
-                            seg_min = sensor.frame_new->seg_init->begin() + k;
-                            found_one=true;
-                        }
-                    }
-                    if(found_one){
-                        std::vector<NeighDatasimple>::iterator it_neigh_data = neighbours.begin();
-                        while(it_neigh_data != neighbours.end() ){
-                            if( *seg_min == it_neigh_data->neigh ){
-                                it_neigh_data->prob_fwd += 1.0 / (double)adv_no_innv_seg.at(i)->p.size() ;
-                                break;
-                            }
-                            it_neigh_data++;
-                        }
-                        if( it_neigh_data == neighbours.end() ){
-                            neighbours.push_back(NeighDatasimple(*seg_min, 1.0 / (double)adv_no_innv_seg.at(i)->p.size(), 0.0));
-                        }
-                    }
-                }
-                for(int k=0;k<neighbours.size();k++){
-                    if(neighbours.at(k).prob_fwd > 0.9){
-                        for(int kk=0;kk<sensor.frame_new->seg_init->size();kk++){
-                            if(neighbours.at(k).neigh == sensor.frame_new->seg_init->at(kk)){
-                                sensor.frame_new->seg_init->erase(sensor.frame_new->seg_init->begin() + kk);
-                                break;
-                            }
-                        }
-                        break;
-                    }
-                }
-
-            }
-        }
-        for(int i=0;i<adv_no_innv_seg.size();i++){
-            sensor.frame_new->seg_init->push_back(adv_no_innv_seg.at(i));
         }
     }
     else{
@@ -119,121 +51,284 @@ void KalmanSLDM::advance(SensorData& sensor, bool advance){//TODO deal with "thi
         S = Mat(S_old.rows,S_old.cols,CV_64F); S_old.copyTo(S);
         P = Mat(P_old.rows,P_old.cols,CV_64F); P_old.copyTo(P);
         Oi = Oi_old;
-        update_sub_mat();
+        if(Oi.size() > 0){
+            //seg_init = seg_init_old;
+            seg_init = SegmentDataPtrVectorPtr ( new SegmentDataPtrVector);
+            for(SegmentDataPtrVectorIter ss = seg_init_old->begin(); ss != seg_init_old->end(); ss++){
+                seg_init->push_back(SegmentDataPtr(new  SegmentData(ss)));
+                for(PointDataVectorIter pp = (*ss)->p.begin(); pp != (*ss)->p.end(); pp++){
+                    seg_init->back()->p.push_back(*pp);
+                }
+            }
+        }
+
     }
+    update_sub_mat();
 }
+
+cv::RotatedRect cov2rectt(cv::Matx<double, 2, 2> _C,xy _center) {
+    cv::RotatedRect ellipse;
+    cv::Mat_<double> eigval, eigvec;
+    cv::eigen(_C, eigval, eigvec);
+
+    /// Exercise4
+    bool index_x;
+    ellipse.center = _center;
+    if(_C(0,0)>_C(1,1)){
+        index_x=0;
+    }
+    else{
+        index_x=1;
+    }
+    ellipse.size.height=sqrt(fabs(eigval(0,!index_x)))*2.4477;//y
+    ellipse.size.width=sqrt(fabs(eigval(0,index_x)))*2.4477;//x
+    if((eigval(0,index_x)!=0)&&(eigval(0,!index_x)!=0))
+        ellipse.angle=atan2(eigvec(index_x,1),eigvec(index_x,0))*(180/M_PI);
+
+    return ellipse;
+}
+
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void KalmanSLDM::run(SensorData& sensor, std::map <SegmentDataExtPtr, std::vector<NeighData> >& neigh_data_to, std::map <SegmentDataExtPtr, std::vector<NeighData> >& neigh_data_tn){
-    adv_erase_obj.clear();
-    seg_ext_new_obj.clear();
-    adv_no_innv_seg.clear();
+void KalmanSLDM::run(InputData &input,
+                     std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >& neigh_data_o,
+                     std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >& neigh_data_n,
+                     std::map <SegmentDataPtr, std::vector<NeighDataInit> >& neigh_data_oi){
 
-    if(sensor.status != OLD_FRAME){ return; }
-    KControl u(sensor.frame_new->rob_vel.v, sensor.frame_new->rob_vel.w, sensor.frame_old->past_time.toSec());
-    if(u.dt < 0.001){ return; }
-    if(!pos_init){ pos_init = true;
-        S.row(0) = sensor.frame_old->rob_x.x; S.row(1) = sensor.frame_old->rob_x.y; S.row(2) = sensor.frame_old->rob_x.angle;
+    if(!input.seg_init){
+        return;
     }
 
-    prediction(u);
+    seg_init = SegmentDataPtrVectorPtr(new SegmentDataPtrVector);
 
-    for(int i=0;i<sensor.frame_new->seg_ext->size();i++){// remember future erase of all objects of segments that have neigh
-        if(sensor.frame_new->seg_ext->at(i)->corr_flag != CORR_NEWOBJ){
-            adv_erase_obj.push_back(sensor.frame_new->seg_ext->at(i)->parrent->parrent);
-        }
+
+    int id_plus=0;
+
+
+    for(std::map<ObjectDataPtr, ObjMat>::iterator oi = Oi.begin(); oi != Oi.end(); oi++){
+        oi->first->solved = false;
     }
-
-
-    for(std::map <SegmentDataExtPtr, std::vector<NeighData> >::iterator it_seg_tn = neigh_data_tn.begin();it_seg_tn != neigh_data_tn.end();it_seg_tn++){
-        if(it_seg_tn->first->corr_flag == CORR_NEWOBJ){
-            seg_ext_new_obj[it_seg_tn->first] = it_seg_tn->first->parrent->parrent;
-            //.....
+    for(std::map<ObjectDataPtr, ObjMat>::iterator oi = Oi.begin(); oi != Oi.end(); oi++){
+        std::vector<CorrInput> mod_list;
+        mod_list.reserve(neigh_data_o.size() * neigh_data_n.size());
+        if(oi->first->solved == true){
             continue;
         }
-
-        for(std::vector<NeighData>::iterator it_seg_to = it_seg_tn->second.begin();it_seg_to != it_seg_tn->second.end();it_seg_to++){
-            if(((it_seg_tn->first->corr_flag == CORR_121)&&(it_seg_to->neigh->corr_flag == CORR_121))||
-               ((it_seg_tn->first->corr_flag == CORR_121)&&(it_seg_to->neigh->corr_flag == CORR_12MANY))){
-                if((it_seg_tn->first->corr_flag == CORR_121)&&(it_seg_to->neigh->corr_flag == CORR_12MANY)){
-                    std::cout<<" 1 t-1 to many"<<std::endl;
-                }
-                //simple 121 or // one t-1 to many t
-                seg_ext_new_obj[it_seg_tn->first] = it_seg_to->neigh->parrent->parrent;
-
-                ConvData conv = *it_seg_to->neigh->conv;
-                TFdata tf = conv.tf->front();
-                xy     com_old = conv.com;               //old com in rob_bar frame after motion prediction
-                xy     com_new = com_old + tf.tf.xy_mean;//new com in rob_bar frame after motion prediction
-                double phi_new = 0.0 + tf.tf.ang_mean;
-
-                KObjZ kObjZ; kObjZ.pos = com_new; kObjZ.phi = phi_new; kObjZ.Q = cv::Matx33d::zeros();
-                kObjZ.Q(0,0) = tf.tf.xy_cov(0,0); kObjZ.Q(0,1) = tf.tf.xy_cov(0,1); kObjZ.Q(1,0) = tf.tf.xy_cov(1,0); kObjZ.Q(1,1) = tf.tf.xy_cov(1,1); kObjZ.Q(2,2) = tf.tf.ang_cov;//all this is in rob_bar frame
-
-
-                init_Oi(it_seg_to->neigh->parrent->parrent,com_old);
-                update_Oi(it_seg_to->neigh->parrent->parrent, kObjZ);
+        std::vector<ObjectDataPtr> o_mod;
+        o_mod.reserve(Oi.size());
+        o_mod.push_back(oi->first);
+        oi->first->solved = true;///flag object as solved
+        for(std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >::iterator s_o = neigh_data_o.begin(); s_o != neigh_data_o.end(); s_o++){// search on seg_ext (t-1) neighbouring list
+            if(s_o->first->solved){
+                continue;
             }
-            else if((it_seg_tn->first->corr_flag == CORR_MANY21)&&(it_seg_to->neigh->corr_flag == CORR_121)){
-                // many t-1 to one t
-                ConvData conv = *it_seg_to->neigh->conv;
-                TFdata tf = conv.tf->front();
-                xy     com_old = conv.com;               //old com in rob_bar frame after motion prediction
-                xy     com_new = com_old + tf.tf.xy_mean;//new com in rob_bar frame after motion prediction
-                double phi_new = 0.0 + tf.tf.ang_mean;
-
-                KObjZ kObjZ; kObjZ.pos = com_new; kObjZ.phi = phi_new; kObjZ.Q = cv::Matx33d::zeros();
-                kObjZ.Q(0,0) = tf.tf.xy_cov(0,0); kObjZ.Q(0,1) = tf.tf.xy_cov(0,1); kObjZ.Q(1,0) = tf.tf.xy_cov(1,0); kObjZ.Q(1,1) = tf.tf.xy_cov(1,1); kObjZ.Q(2,2) = tf.tf.ang_cov;//all this is in rob_bar frame
-
-
-                init_Oi(it_seg_to->neigh->parrent->parrent,com_old);
-                update_Oi(it_seg_to->neigh->parrent->parrent, kObjZ);
-                if(it_seg_to == it_seg_tn->second.begin()){
-                    seg_ext_new_obj[it_seg_tn->first] = it_seg_to->neigh->parrent->parrent;
+            for(std::vector<ObjectDataPtr>::iterator o_mod_it = o_mod.begin(); o_mod_it != o_mod.end(); o_mod_it++){//compare object of their key with "dealing with now" objects
+                if(s_o->first->getObj() == *o_mod_it){//if the same
+                    s_o->first->solved = true;///flag t-1 seg_ext from pair as solved
+                    s_o->first->getParrent()->solved = true;
+                    for(std::vector<NeighDataExt>::iterator s_ext_t = s_o->second.begin(); s_ext_t != s_o->second.end(); s_ext_t++){//look at all those segment neighbours
+                        if(s_ext_t->neigh->solved){
+                            continue;
+                        }
+                        mod_list.push_back(CorrInput(s_o->first, s_ext_t->neigh,0,0));//append the pairs
+                        s_ext_t->neigh->solved = true;///flag t-1 seg_ext from pair as solved (incl parrent)
+                        s_ext_t->neigh->getParrent()->solved = true;
+                        for(std::vector<NeighDataExt>::iterator s_n = neigh_data_n[s_ext_t->neigh].begin(); s_n != neigh_data_n[s_ext_t->neigh].end(); s_n++){//look in seg_ext(t) for the appended segments and append other possible links that have other than "dealing with now" objects
+                            if(s_n->neigh->solved){
+                                continue;
+                            }
+                            bool found = false;
+                            for(std::vector<ObjectDataPtr>::iterator o_mod_it2 = o_mod.begin(); o_mod_it2 != o_mod.end(); o_mod_it2++){
+                                if(s_n->neigh->getObj()){
+                                    if(*o_mod_it2 == s_n->neigh->getObj()){
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if(!found){
+                                o_mod.push_back(s_n->neigh->getObj());
+                                s_n->neigh->getObj()->solved = true;
+                                mod_list.push_back(CorrInput(s_n->neigh, s_ext_t->neigh,0,0));
+                                s_n->neigh->solved = true;///flag t seg_ext from pair as solved (incl parrent)
+                                s_n->neigh->getParrent()->solved = true;
+                            }
+                        }
+                    }
                 }
-                else if(it_seg_tn->second.begin()->neigh->parrent->parrent != it_seg_to->neigh->parrent->parrent){
-                    //update it_seg_tn->second.begin() with it_seg_to
-                    //delete it_seg_to
-                    update_Oi_with_Oj(it_seg_tn->second.begin()->neigh->parrent->parrent,it_seg_to->neigh->parrent->parrent);
-                    rmv_obj(it_seg_to->neigh->parrent->parrent);
-                }
-
-                //here find all from t-1; update first found with all the others, using their S as a "full" observation ( no rob update, no jacobian) and their P as observation noise
-                //test how merging of lines with "fake" velocity works
-
-                std::cout<<" many t-1 to 1"<<std::endl;
-            }
-            else if((it_seg_tn->first->corr_flag == CORR_MANY21)&&(it_seg_to->neigh->corr_flag == CORR_12MANY)){
-                std::cout<<" ERROR : kalman recieved many 2 many object situation"<<std::endl;
             }
         }
-    }
+        //here we have the list of all pairs that are potential to get merged and the list of "dealing with now" objects
+
+        //////////////analysis of merge/split (here you need a list of a vector of pairs for each resolved connect graph)
 
 
 
-    for(std::map <SegmentDataExtPtr, std::vector<NeighData> >::iterator it_seg_to = neigh_data_to.begin();it_seg_to != neigh_data_to.end();it_seg_to++){
-        if(it_seg_to->first->corr_flag == CORR_NOINNV){
-            adv_no_innv_seg.push_back(it_seg_to->first->parrent);
+
+        ///duplicate objects that are being splitted
+        //erase   objects that are being merged
+        for(std::vector<ObjectDataPtr>::iterator o_mod_it = o_mod.begin() + 1; o_mod_it != o_mod.end(); o_mod_it++){
+            rmv_obj(*o_mod_it);
         }
+
+        //update the stuff
+        ///TODO ENCHANTED----
+        Mat P_oi_avg(z_param, z_param, CV_64F, 0.);
+        Mat S_oi_avg(z_param,1,CV_64F,0.);
+        for(std::vector<CorrInput>::iterator entry = mod_list.begin(); entry != mod_list.end(); entry++){//compute avg miu and sigma
+            TFdata tf;
+            for(std::vector<TFdata>::iterator tf_it = entry->frame_old->conv->tf->begin(); tf_it != entry->frame_old->conv->tf->end(); tf_it++){//extract the needed tf
+                if(tf_it->seg == entry->frame_new){
+                    tf = *tf_it;
+                    break;
+                }
+            }
+            xy     com_new = tf.tf.xy_mean;//new com in rob_bar frame after motion prediction
+            double phi_new = tf.tf.ang_mean;
+
+            Mat miu(z_param,1,CV_64F,0.);
+
+            miu.row(0) = com_new.x;
+            miu.row(1) = com_new.y;
+            miu.row(2) = phi_new;
+            Mat sig(z_param, z_param, CV_64F, 0.);
+            sig.row(0).col(0) = tf.tf.xy_cov(0,0);
+            sig.row(0).col(1) = tf.tf.xy_cov(0,1);
+            sig.row(1).col(0) = tf.tf.xy_cov(1,0);
+            sig.row(1).col(1) = tf.tf.xy_cov(1,1);
+            sig.row(2).col(2) = tf.tf.ang_cov;//all this is in rob_bar frame
+
+            if(mod_list.size() > 1){
+                P_oi_avg = P_oi_avg + sig.inv();
+                S_oi_avg = S_oi_avg + sig.inv() * miu;
+            }
+            else{
+                P_oi_avg = sig;
+                S_oi_avg = miu;
+            }
+        }
+        if(mod_list.size() > 1){
+            P_oi_avg = P_oi_avg.inv();// sigma = sum( sigma_k(-1))(-1)
+            S_oi_avg = P_oi_avg * S_oi_avg;// miu = sigma * sum(sigma_k(-1) * miu_k)
+        }
+
+        if(mod_list.size() > 0){
+            //UPDATEUPDATEUPDATE!!!!!!!!!
+
+            KObjZ val;
+            val.pos.x   = S_oi_avg.at<double>(0);
+            val.pos.y   = S_oi_avg.at<double>(1);
+            val.phi     = S_oi_avg.at<double>(2);
+            val.Q(0,0)  = P_oi_avg.at<double>(0,0);
+            val.Q(0,1)  = P_oi_avg.at<double>(0,1);
+            val.Q(1,0)  = P_oi_avg.at<double>(1,0);
+            val.Q(1,1)  = P_oi_avg.at<double>(1,1);
+            val.Q(2,2)  = P_oi_avg.at<double>(2,2);
+            init_Oi(oi->first, xy(0,0));
+            update_Oi(oi->first, val);
+        }
+
+
+        for(std::vector<CorrInput>::iterator entry = mod_list.begin(); entry != mod_list.end(); entry++){//here you need to insert INIT
+            bool found = false;
+            bool p_tf = false;
+            SegmentDataPtr sss;
+            bool seg_unique = true;
+            for(std::vector<CorrInput>::iterator entry_search = mod_list.begin(); entry_search != mod_list.end(); entry_search++){
+                if((entry_search != entry)&&((entry_search->frame_old->getParrent() == entry->frame_old->getParrent())||
+                   (entry_search->frame_new->getParrent() == entry->frame_new->getParrent()))){
+                    seg_unique = false;
+                    break;
+                }
+            }
+            if(/*(found)&&*/(seg_unique)&&(entry->frame_old->getParrent()->len > entry->frame_new->getParrent()->len + 0.01)){
+                sss = entry->frame_old->getParrent();
+                p_tf = true;
+            }
+            else{
+                sss = entry->frame_new->getParrent();
+            }
+            for(SegmentDataPtrVectorIter it_seg_ins = seg_init->begin(); it_seg_ins != seg_init->end(); it_seg_ins++){
+                if(*it_seg_ins == sss){
+                    found = true;
+                    break;
+                }
+            }
+            if(!found){
+                seg_init->push_back(SegmentDataPtr(new  SegmentData(oi->first,id_plus)));
+                if(p_tf){
+                    for(PointDataVectorIter pp = sss->p_tf.begin(); pp != sss->p_tf.end(); pp++){
+                        seg_init->back()->p.push_back(to_polar(mat_mult(entry->frame_old->conv->tf->front().tf.T,to_xy(*pp))));
+                    }
+                }
+                else{
+                    for(PointDataVectorIter pp = sss->p.begin(); pp != sss->p.end(); pp++){
+                        seg_init->back()->p.push_back(*pp);
+                    }
+                }
+            }
+            id_plus++;
+        }
+        ///if 1 to 1 in INIT, choose to keep the longer one
+        ///----TODO ENCHANTED
+
     }
-    for(int j=0;j<sensor.frame_old->seg_init->size();j++){
+    for(SegmentDataPtrVectorIter s_ne =  input.seg_init->begin(); s_ne != input.seg_init->end(); s_ne ++){
+        if(((*s_ne)->solved)){
+            continue;
+        }
         bool found = false;
-        for(int i=0;i<sensor.frame_old->seg_ext->size();i++){
-            if(sensor.frame_old->seg_ext->at(i)->parrent == sensor.frame_old->seg_init->at(j)){
-                found = true;
-                break;
+        for(std::map <SegmentDataPtr, std::vector<NeighDataInit> >::iterator s_oi = neigh_data_oi.begin(); s_oi != neigh_data_oi.end(); s_oi++){
+            for(std::vector<NeighDataInit>::iterator s_ni = s_oi->second.begin(); s_ni != s_oi->second.end(); s_ni++){
+                if(*s_ne == s_ni->neigh){
+                    found = true;
+                    break;
+                }
             }
         }
         if(!found){
-            adv_no_innv_seg.push_back(sensor.frame_old->seg_init->at(j));
+            seg_init->push_back(SegmentDataPtr(new  SegmentData(ObjectDataPtr(new ObjectData(id_plus  /* here wrong, need counter */)),id_plus)));
+            for(PointDataVectorIter pp = (*s_ne)->p.begin(); pp != (*s_ne)->p.end(); pp++){
+                seg_init->back()->p.push_back(*pp);
+            }
+            id_plus++;
+
+            KObjZ dummy;
+            init_Oi(seg_init->back()->getObj(),xy(0,0));
+            update_Oi(seg_init->back()->getObj(),dummy);
+            //UPDATEUPDATEUPDATE!!!!!!!!!
         }
     }
+    for(std::map<ObjectDataPtr, ObjMat>::iterator oi = Oi.begin(); oi != Oi.end(); oi++){
+        cv::RotatedRect rect = cov2rectt(cv::Matx22d(oi->second.P_OO.rowRange(0,2).colRange(0,2)),xy(0,0));
+        if(rect.size.height * rect.size.width > 10){
+            ObjectDataPtr rmv = oi->first;
+            oi--;
+            rmv_obj(rmv);
+        }
+    }
+    for(std::map <SegmentDataPtr, std::vector<NeighDataInit> >::iterator s_oi = neigh_data_oi.begin(); s_oi != neigh_data_oi.end(); s_oi++){
+        if((s_oi->second.size() > 0)||(Oi.count(s_oi->first->getObj()) == 0)){
+            continue;
+        }
+        seg_init->push_back(SegmentDataPtr(new  SegmentData(s_oi->first->getObj(),id_plus)));
+
+        for(PointDataVectorIter pp = s_oi->first->p_tf.begin(); pp != s_oi->first->p_tf.end(); pp++){
+            seg_init->back()->p.push_back(*pp);
+        }
+        id_plus++;
+    }
+    //look for not flagged seg_init (t)
+    // ->that have neighbours in the neigh_list and erase them (dont keep the point clouds for the next frame)
+    // ->that have no neighbours => init them as new objects
+    //DONE!
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void KalmanSLDM::init(State rob_x){
+void KalmanSLDM::init(RState rob_x){
+    seg_init_plus = SegmentDataPtrVectorPtr(new SegmentDataPtrVector());
     pos_init = false;
     S.release(); S_R_bar.release(); P.release();;
     Oi.clear();
@@ -249,11 +344,11 @@ void KalmanSLDM::init(State rob_x){
     obj_noise_phi = 0.0001;
 
     S_R_bar.push_back(0.);      S_R_bar.push_back(0.);      S_R_bar.push_back(0.);
-    S      .push_back(rob_x.x); S      .push_back(rob_x.y); S      .push_back(rob_x.angle);
+    S      .push_back(rob_x.xx); S      .push_back(rob_x.xy); S      .push_back(rob_x.xphi);
     P = Mat::zeros(rob_param, rob_param, CV_64F);
 
     S_R_bar_old.push_back(0.);      S_R_bar_old.push_back(0.);      S_R_bar_old.push_back(0.);
-    S_old      .push_back(rob_x.x); S_old      .push_back(rob_x.y); S_old      .push_back(rob_x.angle);
+    S_old      .push_back(rob_x.xx); S_old      .push_back(rob_x.xy); S_old      .push_back(rob_x.xphi);
     P_old = Mat::zeros(rob_param, rob_param, CV_64F);
 
     //cout<<"S="<<endl<<" "<<S<<endl<<endl;
@@ -263,15 +358,33 @@ void KalmanSLDM::init(State rob_x){
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void KalmanSLDM::prediction(KControl u){
+void KalmanSLDM::prediction(SegmentDataPtrVectorPtr &input, KInp u){
     //cout<<"prediction:"<<endl;
 
     Mat Gt (Mat::zeros(P.rows, P.cols, CV_64F));
-    Mat Gt_R; Gt_R = Gt.rowRange(0, rob_param).colRange(0, rob_param); Mat(Mat::eye(3,3,CV_64F)).copyTo(Gt_R);
-    Mat Vt_R = Mat::eye(rob_param, input_param, CV_64F);
+    Mat Gt_R = Gt.rowRange(0, rob_param).colRange(0, rob_param); Mat(Mat::eye(3,3,CV_64F)).copyTo(Gt_R);
+
     Mat Q(P.rows,P.cols,CV_64F, 0.);
     RState  rob_f0(S);
 
+    predict_p_cloud(input, rob_f0, u);
+    predict_obj(u,Gt, Q);
+
+    predict_rob(rob_f0, u, Gt_R, Q);
+
+    Mat((Gt * P * Gt.t()) + Q).copyTo(P);///COVARIANCE PREDICTED
+
+    //cout<<"Vt_R="<<endl<<" "<<Vt_R<<endl<<endl;
+    //cout<<"Gt="  <<endl<<" "<<Gt  <<endl<<endl;
+    //cout<<"M="   <<endl<<" "<<M   <<endl<<endl;
+    //cout<<"Q="   <<endl<<" "<<Q   <<endl<<endl;
+    //cout<<"S="<<endl<<" "<<S<<endl<<endl;
+//    cout<<"P="<<endl<<" "<<P<<endl<<endl;
+}
+
+///------------------------------------------------------------------------------------------------------------------------------------------------///
+
+void KalmanSLDM::predict_rob(RState  rob_f0, KInp u, Mat& Gt_R, Mat& Q){
     ///ROBOT STATE PREDICTION----
     double dx, dy, da;
     if(fabs(u.w) > 0.001) {
@@ -286,6 +399,8 @@ void KalmanSLDM::prediction(KControl u){
     S.row(0) += dx; S.row(1) += dy; S.row(2) += da;  Mat(S.rowRange(0,3)).copyTo(S_R_bar);
     ///----ROBOT STATE PREDICTION
 
+
+    Mat Vt_R = Mat::eye(rob_param, input_param, CV_64F);
     ///ROBOT JACOBIANS----
     if(fabs(u.w) > 0.001){
         Gt_R.row(0).col(2) = - (u.v * (cos(rob_f0.xphi) - cos(u.dt * u.w + rob_f0.xphi)) / u.w);
@@ -308,6 +423,9 @@ void KalmanSLDM::prediction(KControl u){
 //        Vt_R.row(1).col(2) = u.v * sin(u.dt * u.w + rob_f0.xphi);
 //        Vt_R.row(2).col(2) = u.w;
     ///----ROBOT JACOBIANS
+
+
+    //////INPUT NOISE ----
     double sign;
     if(fabs(u.v) > fabs(v_static)){ sign = sgn(u.v); }
     else{                           sign = sgn(v_static);}
@@ -318,15 +436,19 @@ void KalmanSLDM::prediction(KControl u){
     double w_noise = sign * fmax(fabs(u.w), fabs(w_static));
     w_static = (w_static + u.w) / 2.0;
 
-    //////INPUT NOISE MATRIX----
+
     Mat M = Mat::zeros(input_param , input_param, CV_64F);
     M.row(0).col(0) = input_noise[0]*sqr(v_noise) + input_noise[1] * sqr(w_noise);
     M.row(1).col(1) = input_noise[2]*sqr(v_noise) + input_noise[3] * sqr(w_noise);
     M.row(2).col(2) = input_noise[4]*sqr(u.dt);
 
     Mat(Vt_R * M * Vt_R.t()).copyTo(Q.rowRange(0,rob_param).colRange(0,rob_param));
-    ///----INPUT NOISE MATRIX
+    ///----INPUT NOISE
+}
 
+///------------------------------------------------------------------------------------------------------------------------------------------------///
+
+void KalmanSLDM::predict_obj(KInp u, Mat& Gt, Mat& Q){
     ///OBJECTS JACOBIANS & STATE PREDICTION----
     for(map<ObjectDataPtr, ObjMat>::iterator oi = Oi.begin();oi != Oi.end(); oi++){
         int i_min = oi->second.i_min;
@@ -344,14 +466,48 @@ void KalmanSLDM::prediction(KControl u){
     }
     ///----OBJECTS JACOBIANS & STATE PREDICTION
 
-    Mat((Gt * P * Gt.t()) + Q).copyTo(P);///COVARIANCE PREDICTED
+}
 
-    //cout<<"Vt_R="<<endl<<" "<<Vt_R<<endl<<endl;
-    //cout<<"Gt="  <<endl<<" "<<Gt  <<endl<<endl;
-    //cout<<"M="   <<endl<<" "<<M   <<endl<<endl;
-    //cout<<"Q="   <<endl<<" "<<Q   <<endl<<endl;
-    //cout<<"S="<<endl<<" "<<S<<endl<<endl;
-    //cout<<"P="<<endl<<" "<<P<<endl<<endl;
+///------------------------------------------------------------------------------------------------------------------------------------------------///
+
+void KalmanSLDM::predict_p_cloud(SegmentDataPtrVectorPtr &input, RState  rob_f0, KInp u){
+    if(!input){
+        return;
+    }
+    for(SegmentDataPtrVector::iterator inp = input->begin(); inp != input->end(); inp++){
+        if(Oi.count((*inp)->getObj()) == 0){
+            continue;
+        }
+        double dt = u.dt;//ALL THIS TF HAS TO BE TF-ED ITSELF IN NEW ROB_BAR FRAME
+        OiState obj_f0(Oi[(*inp)->getObj()].S_O);
+        OiState obj_f1;
+
+
+        obj_f1.xx   =  (obj_f0.xx - rob_f0.xx) * cos(rob_f0.xphi) + (obj_f0.xy - rob_f0.xy) * sin(rob_f0.xphi);
+        obj_f1.xy   =  (obj_f0.xy - rob_f0.xy) * cos(rob_f0.xphi) - (obj_f0.xx - rob_f0.xx) * sin(rob_f0.xphi);
+        obj_f1.xphi =   obj_f0.xphi - rob_f0.xphi;
+        obj_f1.vx   =   obj_f0.vx * cos(rob_f0.xphi) + obj_f0.vy * sin(rob_f0.xphi);
+        obj_f1.vy   =   obj_f0.vy * cos(rob_f0.xphi) - obj_f0.vx * sin(rob_f0.xphi);
+        obj_f1.vphi =   obj_f0.vphi;
+        obj_f1.ax   =   obj_f0.ax * cos(rob_f0.xphi) + obj_f0.ay * sin(rob_f0.xphi);
+        obj_f1.ay   =   obj_f0.ay * cos(rob_f0.xphi) - obj_f0.ax * sin(rob_f0.xphi);
+        obj_f1.aphi =   obj_f0.aphi;
+
+        xy com_x_f1(obj_f1.xx/*(*inp)->parrent->com.x*/, obj_f1.xy/*(*inp)->parrent->com.y*/);
+
+        xy t;double angle;
+        t.x = obj_f1.vx * dt + obj_f1.ax * sqr(dt) / 2.0;
+        t.y = obj_f1.vy * dt + obj_f1.ay * sqr(dt) / 2.0;
+        angle = 0;// /*obj_xphi_f1 + */(obj_f1.vphi * dt + obj_f1.aphi * sqr(dt) / 2.0);
+
+        cv::Mat_<double>T = (cv::Mat_<double>(3,3) << cos(angle), -sin(angle), t.x,
+                                                       sin(angle),  cos(angle),t.y,
+                                                                0,           0, 1);
+        cv::Matx33d Tt(T);
+        for(PointDataVectorIter p = (*inp)->p.begin(); p != (*inp)->p.end(); p++){
+            *p = PointData(to_polar(mat_mult(Tt, to_xy(*p) - com_x_f1)+com_x_f1));
+        }
+    }
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///

@@ -2,6 +2,7 @@
 #include <opencv/cv.h>
 #include <opencv2/opencv.hpp>
 #include "utils/iterators.h"
+#include "utils/iterators_ss_tf.h"
 #include "utils/base_classes.h"
 #include "data_processing/dp.h"
 
@@ -66,15 +67,24 @@ void PlotData::plot_segm(const SegmentDataExtPtrVectorPtr &data,cv::Scalar color
             circle(plot, w2i(tf_sns.s2r(to_xy(*iis.p()))),2,color);
 //            line(plot,w2i(s2r(0,0)), w2i(s2r(to_xy(*iis.p))),blue);
             if( iis.status() == IIS_P_RBEGIN ){
-                putFullCircle(w2i(tf_sns.s2r((*iis.seg())->conv->com)),1,5,color);
+                putFullCircle(w2i(tf_sns.s2r((*iis.seg())->getCom())),1,5,color);
                 std::stringstream s;
                 s.precision(4);
                 s << /*"len="<<std::setw(3)<<(*iis.seg())->len<<*/ "  S:"<<(*iis.seg())->id;
-                if((*iis.seg())->parrent->parrent->fr_stat == FRAME_OLD){
-                    s <<"|O:"<<(*iis.seg())->parrent->parrent->id;
+                if((*iis.seg())->getObj()){
+                    s <<"|O:"<<(*iis.seg())->getObj()->id;
                 }
-                putText(plot,s.str().c_str(),w2i(tf_sns.s2r((*iis.seg())->conv->com)),FONT_HERSHEY_PLAIN,1,color);
+                putText(plot,s.str().c_str(),w2i(tf_sns.s2r((*iis.seg())->getCom())),FONT_HERSHEY_PLAIN,1,color);
             }
+        }while( iis.advance(ALL_SEGM, INC));
+    }
+}
+
+void PlotData::plot_segm_init(const SegmentDataPtrVectorPtr &data,cv::Scalar color){
+    IteratorIndexSet_ss_tf iis(data);
+    if(iis.status() >= IIS_VALID){
+        do{
+            circle(plot, w2i(tf_sns.s2r(to_xy(*iis.p()))),2,color);
         }while( iis.advance(ALL_SEGM, INC));
     }
 }
@@ -82,74 +92,77 @@ void PlotData::plot_segm(const SegmentDataExtPtrVectorPtr &data,cv::Scalar color
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 void PlotData::plot_segm_tf(const SegmentDataExtPtrVectorPtr &data, int frame, cv::Scalar color){
-    IteratorIndexSet iis(data);
-    if(iis.status() >= IIS_VALID){
-        do{
-            TfVar tf;
-            for(std::vector<TFdata>::iterator tf_it = (*iis.seg())->conv->tf->begin(); tf_it != (*iis.seg())->conv->tf->end(); tf_it++){
-                if(tf_it->conv_stat == CONV_SPL ){
-                    continue;
-                }
-                xy com_new, com_old, p_first_old,p_first_new, p_last_old,p_last_new;
+//    IteratorIndexSet iis(data);
+//    if(iis.status() >= IIS_VALID){
+//        do{
+//            TfVar tf;
+//            for(std::vector<TFdata>::iterator tf_it = (*iis.seg())->conv->tf->begin(); tf_it != (*iis.seg())->conv->tf->end(); tf_it++){
+//                if(tf_it->conv_stat == CONV_SPL ){
+//                    continue;
+//                }
+//                xy com_new, com_old, p_first_old,p_first_new, p_last_old,p_last_new;
 
-                if( iis.status() == IIS_P_RBEGIN ){
-                    if( (*iis.seg())->parrent->parrent->fr_stat == FRAME_OLD ){
-                        tf = tf_it->tf;
-                        com_old = (*iis.seg())->conv->com;
-                        p_first_old = to_xy((*iis.seg())->p.front());
-                        p_last_old  = to_xy((*iis.seg())->p.back());
-                        com_new     = mat_mult(tf.T, com_old);
-                        p_first_new = mat_mult(tf.T, p_first_old);
-                        p_last_new  = mat_mult(tf.T, p_last_old);
-                    }
-                    else{
-                        tf = tf_it->tf_inv;
-                        com_new = (*iis.seg())->conv->com;
-                        p_first_new = to_xy((*iis.seg())->p.front());
-                        p_last_new  = to_xy((*iis.seg())->p.back());
-                        com_old     = mat_mult(tf_it->tf.T, com_new);
-                        p_first_old = mat_mult(tf_it->tf.T, p_first_new);
-                        p_last_old  = mat_mult(tf_it->tf.T, p_last_new);
-                    }
+//                if( iis.status() == IIS_P_RBEGIN ){
+//                    if( (*iis.seg())->getObj()){
+//                        tf = tf_it->tf;
+//                        com_old = (*iis.seg())->conv->com;
+//                        p_first_old = to_xy((*iis.seg())->p.front());
+//                        p_last_old  = to_xy((*iis.seg())->p.back());
+//                        com_new     = mat_mult(tf.T, com_old);
+//                        p_first_new = mat_mult(tf.T, p_first_old);
+//                        p_last_new  = mat_mult(tf.T, p_last_old);
+//                    }
+//                    else{
+//                        tf = tf_it->tf_inv;
+//                        com_new = (*iis.seg())->conv->com;
+//                        p_first_new = to_xy((*iis.seg())->p.front());
+//                        p_last_new  = to_xy((*iis.seg())->p.back());
+//                        com_old     = mat_mult(tf_it->tf.T, com_new);
+//                        p_first_old = mat_mult(tf_it->tf.T, p_first_new);
+//                        p_last_old  = mat_mult(tf_it->tf.T, p_last_new);
+//                    }
 
-                    putFullCircle(w2i(tf_sns.s2r(com_new)),1,5,black);
+//                    putFullCircle(w2i(tf_sns.s2r(com_new)),1,5,black);
 
-                    xy arrow_base = w2i(tf_sns.s2r(com_old));
-                    xy arrow_tip  = w2i(tf_sns.s2r(com_old + tf.xy_mean));
-                    putArrow(arrow_base, arrow_tip,green_dark,2);
-                    arrow_base = w2i(tf_sns.s2r(p_first_old));
-                    arrow_tip  = w2i(tf_sns.s2r(p_first_new));
-                    putArrow(arrow_base, arrow_tip,green_dark,2);
-                    arrow_base = w2i(tf_sns.s2r(p_last_old));
-                    arrow_tip  = w2i(tf_sns.s2r(p_last_new));
-                    putArrow(arrow_base, arrow_tip,green_dark,2);
+//                    xy arrow_base = w2i(tf_sns.s2r(com_old));
+//                    xy arrow_tip  = w2i(tf_sns.s2r(com_old + tf.xy_mean));
+//                    putArrow(arrow_base, arrow_tip,green_dark,2);
+//                    arrow_base = w2i(tf_sns.s2r(p_first_old));
+//                    arrow_tip  = w2i(tf_sns.s2r(p_first_new));
+//                    putArrow(arrow_base, arrow_tip,green_dark,2);
+//                    arrow_base = w2i(tf_sns.s2r(p_last_old));
+//                    arrow_tip  = w2i(tf_sns.s2r(p_last_new));
+//                    putArrow(arrow_base, arrow_tip,green_dark,2);
 
 
-                    cv::Matx33d cov_xy33(tf.xy_cov(0,0), tf.xy_cov(0,1), 0,
-                                         tf.xy_cov(1,0), tf.xy_cov(1,1), 0,
-                                                     0,               0, 0);
-                    cv::Matx33d Mw2i33(Mw2i);
-                    cov_xy33 = Mw2i33 * cov_xy33 * Mw2i33.t();
-                    cv::Matx22d cov_xy22(cov_xy33(0,0),cov_xy33(0,1),cov_xy33(1,0),cov_xy33(1,1));
-                    cv::RotatedRect ellips = cov2rect(cov_xy22,w2i(tf_sns.s2r(com_old + tf.xy_mean)));
-                    cv::ellipse(plot,ellips,green_bright,2);
-                }
-                xy p_tf;
-                if( (*iis.seg())->parrent->parrent->fr_stat == FRAME_OLD ){
-                    p_tf = mat_mult(tf_it->tf.T,to_xy(*iis.p()));
-                }
-                else{
-                    p_tf = to_xy(*iis.p());
-                }
-                circle(plot, w2i(tf_sns.s2r(p_tf)), 2, black);
-            }
-        }while( iis.advance(ALL_SEGM, INC));
-    }
+//                    cv::Matx33d cov_xy33(tf.xy_cov(0,0), tf.xy_cov(0,1), 0,
+//                                         tf.xy_cov(1,0), tf.xy_cov(1,1), 0,
+//                                                     0,               0, 0);
+//                    cv::Matx33d Mw2i33(Mw2i);
+//                    cov_xy33 = Mw2i33 * cov_xy33 * Mw2i33.t();
+//                    cv::Matx22d cov_xy22(cov_xy33(0,0),cov_xy33(0,1),cov_xy33(1,0),cov_xy33(1,1));
+//                    cv::RotatedRect ellips = cov2rect(cov_xy22,w2i(tf_sns.s2r(com_old + tf.xy_mean)));
+//                    cv::ellipse(plot,ellips,green_bright,2);
+//                }
+//                xy p_tf;
+//                if( (*iis.seg())->getObj()){
+//                    p_tf = mat_mult(tf_it->tf.T,to_xy(*iis.p()));
+//                }
+//                else{
+//                    p_tf = to_xy(*iis.p());
+//                }
+//                circle(plot, w2i(tf_sns.s2r(p_tf)), 2, black);
+//            }
+//        }while( iis.advance(ALL_SEGM, INC));
+//    }
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 void PlotData::plot_kalman(const SegmentDataExtPtrVectorPtr &data, KalmanSLDM& k){
+    if(!data){
+        return;
+    }
     putArrow(w2i(0,0),w2i(k.S.at<double>(0,0) - k.S_R_bar.at<double>(0,0),k.S.at<double>(1,0) - k.S_R_bar.at<double>(1,0)),magenta,2);
 
     cv::Matx33d Mw2i33(Mw2i);
@@ -173,9 +186,9 @@ void PlotData::plot_kalman(const SegmentDataExtPtrVectorPtr &data, KalmanSLDM& k
     for(int i=0; i< data->size(); i++){
         if( data->at(i)->conv ){
             if(data->at(i)->conv->tf->size() > 0){
-                if(data->at(i)->conv->tf->front().seg->parrent){
+                if(data->at(i)->conv->tf->front().seg->getParrent()){
                     xy com  =  data->at(i)->conv->com;
-                    ObjectDataPtr obj = data->at(i)->conv->tf->front().seg->parrent->parrent;
+                    ObjectDataPtr obj = data->at(i)->conv->tf->front().seg->getObj();
                     if( k.Oi.count(obj) != 0 ){
                         xy v(k.Oi[obj].S_O.at<double>(3,0),k.Oi[obj].S_O.at<double>(4,0));double w = k.Oi[obj].S_O.at<double>(5,0);
                         v = rot_rob_bar * v;
