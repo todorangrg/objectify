@@ -24,13 +24,13 @@ void Preprocessing::plot_data(InputData& input, cv::Scalar color_raw, cv::Scalar
         return;
     }
     if(plot_data_raw){
-        plot.plot_points(input.sensor_raw,color_raw);
+        plot.plot_points(*input.sensor_raw     , color_raw);
     }
     if(plot_data_preproc){
-        plot.plot_points(input.sensor_filtered,color_preproc);
+        plot.plot_points(*input.sensor_filtered, color_preproc);
     }
     if(plot_oult_preproc){
-        plot.plot_oult_circles(plot_p_ell,plot_p_ell_erased,color_outl_acc,color_outl_rej);
+        plot.plot_oult_circles(plot_p_ell, plot_p_ell_erased, color_outl_acc, color_outl_rej);
     }
 }
 

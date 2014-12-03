@@ -8,10 +8,12 @@ class ConvolInfo;
 
 class Plot{
 public:
+
     cv::Scalar green;
     cv::Scalar green_bright;
     cv::Scalar green_dark;
     cv::Scalar red;
+    cv::Scalar red_dark;
     cv::Scalar blue;
     cv::Scalar blue_bright;
     cv::Scalar blue_dark;
@@ -25,21 +27,21 @@ public:
 
     cv::Mat     plot;
 
-    void putArrow         (xy tail, xy tip, cv::Scalar color, int thickness=1);
-    void putFullCircle    (xy point, int min_radius, int max_radius, cv::Scalar color);
+    cv::Point       w2i(double _x, double _y);
+    cv::Point       w2i(const xy &_p) { return w2i(_p.x, _p.y); }
 
-    cv::RotatedRect cov2rect(cv::Matx<double, 2, 2> _C, xy _center) ;
+    void            putArrow     (xy tail, xy tip, cv::Scalar color, int thickness=1);
+    void            putFullCircle(xy point, int min_radius, int max_radius, cv::Scalar color);
 
-    virtual void update() = 0;
+    virtual void    update() = 0;
 
+    //Constructors & Destructors
     Plot(std::string window_name);
-
-    cv::Point w2i(double _x, double _y);
-    cv::Point w2i(const xy &_p) { return w2i(_p.x, _p.y); }
+    ~Plot(){}
 protected:
-    std::string wndView_;  // opencv window name
-    cv::Mat_<double> Mw2i;
 
+    std::string      wndView_;  // opencv window name
+    cv::Mat_<double> Mw2i;
 };
 
 #endif // PLOT_H

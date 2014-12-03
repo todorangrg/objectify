@@ -6,15 +6,16 @@
 class PlotData;
 
 class Preprocessing{
-
 public:
+
     void run(InputData& input);
     void plot_data(InputData& input, cv::Scalar color_raw, cv::Scalar color_preproc, cv::Scalar color_outl_acc,cv::Scalar color_outl_rej);
 
-    //Constructors
+    //Constructors & Destructors
     Preprocessing(RecfgParam &_param, PlotData& _plot);
-
+    ~Preprocessing(){}
 private:
+
     void filter       (const PointDataVectorPtr &_input, PointDataVectorPtr &_output);
     void erase_outl   (const PointDataVectorPtr &_input, PointDataVectorPtr &_output, bool debug_print);
     void check_neigh_p(const PointDataVectorPtr &_input, PointDataVectorPtr   &_temp, std::vector<bool> &temp_valid, int it, bool debug_print);
@@ -35,6 +36,7 @@ private:
     bool& plot_data_raw;
     bool& plot_data_preproc;
     bool& plot_oult_preproc;
+
     std::vector<cv::RotatedRect> plot_p_ell;
     std::vector<int>             plot_p_ell_erased;
 };

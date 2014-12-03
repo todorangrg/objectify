@@ -10,7 +10,6 @@
 //ADD SEGMENT/OBJECT INFO FOR THE REF/SPL FRAME
 //ADD CONVOL INFO FOR THE LOOKED-AT POSITION + COVARIANCE (xy:x,y<-EIGEN,teta) OF THE ENTIRE SOLUTION SPACE
 
-
 class ConvolInfo;
 
 enum PlotConvGraph{
@@ -20,6 +19,7 @@ enum PlotConvGraph{
     SCORE,
     ANG_VAR
 };
+
 struct GraphData{
     std::stringstream name;
     double max;
@@ -32,6 +32,7 @@ struct GraphData{
 
 class PlotConv : public Plot{
 public:
+
     void init_w2i(boost::shared_ptr<ConvData>* conv_data);
     void update();
 
@@ -40,10 +41,10 @@ public:
     void plot_grids();
     void load_graph_param(std::vector<boost::shared_ptr<ConvolInfo> >& convol_distr);
 
+    //Constructors & Destructors
     PlotConv(std::string wndView,RecfgParam &_param);
+    ~PlotConv(){}
 private:
-
-
 
     static const int no_graph_param = 5;
 
@@ -60,17 +61,15 @@ private:
     double& score_thres;
     int     image_size;
 
-
-
     double scale_x;
 
     int    x_border[2];
     int    y_border[2];
     double font_size;
 
-    GraphData gdata[no_graph_param];
-
     double Mw2i_scale;
+
+    GraphData gdata[no_graph_param];
 };
 
 #endif // PLOT_CONVOLUTION_H

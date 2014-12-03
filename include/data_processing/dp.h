@@ -13,27 +13,25 @@
 class DataProcessing{
 public:
 
-
     InputData     input;
     Preprocessing preprocessing;
     Segmentation  segmentation;
     Correlation   correlation;
     KalmanSLDM    k;
 
-
-
     void run(bool new_frame);
 
+    //Constructors & Destructors
     DataProcessing(RecfgParam& param, SensorTf& _tf_sns, PlotData& plot,PlotConv& plot_conv );
+    ~DataProcessing(){}
 protected:
+
     RecfgParam &param;
     Distributions noise;
     SensorTf& tf_sns;
     PlotData& plot;
-
-
-
 private:
+
 };
 
 #endif // DATA_PROCESSING_H

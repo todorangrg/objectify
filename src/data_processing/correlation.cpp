@@ -78,26 +78,26 @@ void Correlation::run(InputData &input, KalmanSLDM k, bool new_frame){
     set_flags(input.seg_ext, FRAME_NEW);
 
 
-    if(new_frame){
-        debug_cout_neigh_list(FRAME_OLD);
-        debug_cout_neigh_list(FRAME_NEW);
-    }
+//    if(new_frame){
+//        debug_cout_neigh_list(FRAME_OLD);
+//        debug_cout_neigh_list(FRAME_NEW);
+//    }
 
     create_corr_queue();
 
-    if(new_frame){
-        debug_cout_corr_queue(corr_list);
-    }
+//    if(new_frame){
+//        debug_cout_corr_queue(corr_list);
+//    }
 
     run_conv(input, k);
 
 
-    update_neigh_list();
-    if(new_frame){
-        std::cout<<"AFTER CONV !!! "<<std::endl;
-        debug_cout_neigh_list(FRAME_OLD);
-        debug_cout_neigh_list(FRAME_NEW);
-    }
+    update_neigh_list();//needed to kick out from the lists the links that had no tf...however, the keys remain
+//    if(new_frame){
+//        std::cout<<"AFTER CONV !!! "<<std::endl;
+//        debug_cout_neigh_list(FRAME_OLD);
+//        debug_cout_neigh_list(FRAME_NEW);
+//    }
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -148,6 +148,8 @@ void Correlation::plot_all_data(InputData &input, KalmanSLDM k, cv::Scalar color
         plot_data.plot_segm_tf(k.seg_ext, 0 , plot_data.blue);
         plot_data.plot_segm_tf(input.seg_ext, 0 , plot_data.blue);
     }
+    print_neigh_list(FRAME_OLD);
+    print_neigh_list(FRAME_NEW);
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -283,7 +285,6 @@ void Correlation::merge_neigh_lists(FrameStatus fr_status){
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-
 bool ang_sort_func    (PointDataCpy i, PointDataCpy j) { return (i.angle  < j.angle ); }
 // TODO TODO TODO DEBUG IT!!!
 void Correlation::calc_stitch_perc(const SegmentDataPtrVectorPtr &input_ref, const SegmentDataPtrVectorPtr &input_spl, FrameStatus fr_status){
@@ -328,15 +329,18 @@ void Correlation::calc_stitch_perc(const SegmentDataPtrVectorPtr &input_ref, con
         if(i_b[NEG] > p_array[CONV_SPL].size() - 1){ i_b[NEG] = p_array[CONV_SPL].size() - 1; }
         if(i_b[POS] < 0 ){ i_b[POS] = 0; }
         if(i_b[POS] > p_array[CONV_SPL].size() - 1){ i_b[POS] = p_array[CONV_SPL].size() - 1; }
-        if((fabs(p_array[CONV_SPL][i_b[POS]].angle - ang_bounds[1]) > fabs(p_array[CONV_SPL][i_b[NEG]].angle - ang_bounds[0]))){
-            while(p_array[CONV_SPL][i_b[POS]].angle > ang_bounds[1]){i_b[POS]--;}
-            i_b[NEG] = i_b[POS];
+
+        if(p_array[CONV_SPL].size() > 0){
+            if((fabs(p_array[CONV_SPL][i_b[POS]].angle - ang_bounds[1]) > fabs(p_array[CONV_SPL][i_b[NEG]].angle - ang_bounds[0]))){
+                while((p_array[CONV_SPL][i_b[POS]].angle > ang_bounds[1])&&(i_b[POS] > 0)){i_b[POS]--;}
+                i_b[NEG] = i_b[POS];
+            }
+            else{
+                while((p_array[CONV_SPL][i_b[NEG]].angle < ang_bounds[0])&&(i_b[NEG] < p_array[CONV_SPL].size() - 1)){i_b[NEG]++;}
+                i_b[POS] = i_b[NEG];
+            }
         }
-        else{
-            while(p_array[CONV_SPL][i_b[NEG]].angle < ang_bounds[0]){i_b[NEG]++;}
-            i_b[POS] = i_b[NEG];
-        }
-        //TODO HERE CHECK IF TARGET IS NOT OUT OF CIRCLE BOUNDS
+
         bool found_one = false;
         PointData p_min;
         SegmentDataPtr seg_min;
@@ -346,7 +350,7 @@ void Correlation::calc_stitch_perc(const SegmentDataPtrVectorPtr &input_ref, con
             for(int i = -1; i <= 1; i = i + 2){
                 int i_now = i_b[std::max(0,i)] + i;
 
-                if((i_now > p_array[CONV_SPL].size() - 1)||(i_now < 0)){
+                if((i_now > (int)p_array[CONV_SPL].size() - 1)||(i_now < 0)){
                     out_of_bounds[std::max(0,i)] = 1;
                     continue;
                 }
@@ -505,4 +509,114 @@ void Correlation::debug_cout_neigh_list(FrameStatus fr_status){
         std::cout<<std::endl;
     }
     std::cout.precision(6);
+}
+
+
+
+
+std::string Correlation::print_segment(SegmentDataBase& it_seg){
+    std::stringstream ss;
+    ss<<"s:"<<std::setw(2)<<it_seg.id<<"o:"<<std::setw(2);
+    if(it_seg.getObj()){ ss<<it_seg.getObj()->id; }
+    else               { ss<<"";                  }
+    return ss.str();
+}
+
+void Correlation::print_neigh_list(FrameStatus fr_status){
+    std::stringstream ss;ss.precision(0);
+    if(fr_status == FRAME_OLD){
+        ss<<"FRAME NEIGHBOURS INIT (t-1)"<<std::endl;
+    }
+    else{
+        ss<<"FRAME NEIGHBOURS INIT ( t )"<<std::endl;
+    }
+    //////////////////////////////////////////////////////////////////////////////////////very very bad sorted extraction vv
+    int k=0;
+    std::map <SegmentDataPtr, std::vector<NeighDataInit> >::iterator it_seg_old;
+    std::map <SegmentDataPtr, std::vector<NeighDataInit> >::iterator it_seg;
+
+    it_seg_old = neigh_data_init[fr_status].end();
+    while(k < neigh_data_init[fr_status].size()){
+        it_seg = neigh_data_init[fr_status].begin();
+        if(k>0){while((it_seg->first->id <= it_seg_old->first->id)){ it_seg++; if(it_seg == neigh_data_init[fr_status].end()){break;}}}
+        for(std::map <SegmentDataPtr, std::vector<NeighDataInit> >::iterator it_seg_s = it_seg;it_seg_s != neigh_data_init[fr_status].end();it_seg_s++){
+            if(k > 0){
+                if((it_seg_s->first->id > it_seg_old->first->id)&&(it_seg->first->id > it_seg_s->first->id)){
+                    it_seg = it_seg_s;
+                }
+            }else{
+                if(it_seg->first->id > it_seg_s->first->id){
+                    it_seg = it_seg_s;
+                }
+            }
+        }
+        it_seg_old = it_seg;
+        k++;
+    //////////////////////////////////////////////////////////////////////////////////////very very bad sorted extraction ^^
+
+        ss<<print_segment(*it_seg->first);
+        ss<<" - ";
+        for(std::vector<NeighDataInit>::iterator it_neigh = it_seg->second.begin();it_neigh != it_seg->second.end();it_neigh++){
+            ss<<print_segment(*it_neigh->neigh);
+            ss<<"   | ";
+        }
+        ss<<std::endl<<"           ";
+        for(std::vector<NeighDataInit>::iterator it_neigh = it_seg->second.begin();it_neigh != it_seg->second.end();it_neigh++){
+            ss<<std::setw(3)<<std::fixed<<round(it_neigh->prob_fwd*100.0);
+            ss<<"/"<<std::setw(3)<<std::fixed<<round(it_neigh->prob_rev*100.0);
+            ss<<"    | ";
+            ss<" ";
+        }
+        ss<<std::endl;
+    }
+    ss<<std::endl;
+
+    if(fr_status == FRAME_OLD){
+        ss<<"FRAME NEIGHBOURS EXT  (t-1)"<<std::endl;
+    }
+    else{
+        ss<<"FRAME NEIGHBOURS EXT  ( t )"<<std::endl;
+    }
+    //////////////////////////////////////////////////////////////////////////////////////very very bad sorted extraction vv
+    k=0;
+    std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >::iterator it_seg_old_e;
+    std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >::iterator it_seg_e;
+
+    it_seg_old_e = neigh_data_ext[fr_status].end();
+    while(k < neigh_data_ext[fr_status].size()){
+        it_seg_e = neigh_data_ext[fr_status].begin();
+        if(k>0){while((it_seg_e->first->id <= it_seg_old_e->first->id)){ it_seg_e++; if(it_seg_e == neigh_data_ext[fr_status].end()){break;}}}
+        for(std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >::iterator it_seg_s = it_seg_e;it_seg_s != neigh_data_ext[fr_status].end();it_seg_s++){
+            if(k > 0){
+                if((it_seg_s->first->id > it_seg_old_e->first->id)&&(it_seg_e->first->id > it_seg_s->first->id)){
+                    it_seg_e = it_seg_s;
+                }
+            }else{
+                if(it_seg_e->first->id > it_seg_s->first->id){
+                    it_seg_e = it_seg_s;
+                }
+            }
+        }
+        it_seg_old_e = it_seg_e;
+        k++;
+    //////////////////////////////////////////////////////////////////////////////////////very very bad sorted extraction ^^
+
+        ss<<print_segment(*it_seg_e->first);
+        ss<<" - ";
+        for(std::vector<NeighDataExt>::iterator it_neigh = it_seg_e->second.begin();it_neigh != it_seg_e->second.end();it_neigh++){
+            ss<<print_segment(*it_neigh->neigh);
+            ss<<"   | ";
+        }
+        ss<<std::endl<<"           ";
+        for(std::vector<NeighDataExt>::iterator it_neigh = it_seg_e->second.begin();it_neigh != it_seg_e->second.end();it_neigh++){
+            ss<<std::setw(3)<<std::fixed<<round(it_neigh->prob_fwd*100.0);
+            ss<<"/"<<std::setw(3)<<std::fixed<<round(it_neigh->prob_rev*100.0);
+            ss<<"/tf";
+            if(it_neigh->neigh->conv->tf->size() > 0){ ss<<"+| "; } else { ss<<"?| "; }
+        }
+        ss<<std::endl;
+    }
+    ss<<std::endl;
+    //std::cout<<ss.str();
+    plot_data.putInfoText(ss,13,plot_data.black);
 }

@@ -6,9 +6,10 @@
 extern const char* ConvFlagNames[];
 
 
-//TODO tf at the end in the corrected rob frame (better in kalman)
-//     check for errors and possible wrong inclusion of empty segments
+//TODO NOW   : tf at the end in the corrected rob frame (better in kalman)
+//     LATER : comment, final cleanup, speed-up
 //
+
 
 Segmentation::Segmentation(RecfgParam &_param, SensorTf& _tf_sns, PlotData& _plot, KalmanSLDM &_k) :
     outl_circle_rad(_param.segm_outl_circle_rad),
@@ -21,22 +22,23 @@ Segmentation::Segmentation(RecfgParam &_param, SensorTf& _tf_sns, PlotData& _plo
     angle_min(_param.cb_sensor_point_angl_min),
     tf_sns(_tf_sns),
     plot(_plot),
-    plot_data_segm(_param.viz_data_segm),
+    plot_data_segm_init(_param.viz_data_segm_init),
+    plot_data_segm_ext (_param.viz_data_segm_ext),
     k(_k){}
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void Segmentation::plot_data(InputData &input, KalmanSLDM k, cv::Scalar color_old, cv::Scalar color_new){
+void Segmentation::plot_data(InputData &input, KalmanSLDM k){
     if(!input.is_valid){
         return;
     }
-    plot.putInfoText("[ n]raw_frames no_p = ",input.sensor_raw->size()+input.sensor_raw->size(),1,plot.black);
-    plot.putInfoText("[ms]delta t_frame = ",input.u.dt,2,plot.black);
-    plot.plot_segm_init(k.seg_init,plot.green_dark);
-    plot.plot_segm_init(input.seg_init,plot.green_bright);
-    if(plot_data_segm){
-        plot.plot_segm(k.seg_ext,plot.blue);
-        plot.plot_segm(input.seg_ext,plot.red);
+    if(plot_data_segm_init){
+        plot.plot_segm(k.seg_init    , plot.blue_dark);
+        plot.plot_segm(input.seg_init, plot.red_dark );
+    }
+    if(plot_data_segm_ext){
+        plot.plot_segm(k.seg_ext    , plot.blue);
+        plot.plot_segm(input.seg_ext, plot.red);
     }
 
 }
@@ -56,38 +58,46 @@ void Segmentation::run(InputData &input, KalmanSLDM &k, bool advance){
     assign_seg_init(input.sensor_filtered,input.seg_init);
     split_com_len  (input.seg_init);
 
-    assign_seg_ext    (input.seg_init , input.seg_ext);
-    calc_tf           (input.seg_ext  , NEW2OLD);
-    calc_occlusion    (input.seg_ext  , 1      );
+    assign_seg_ext    (input.seg_init, input.seg_ext);
+    calc_tf           (input.seg_ext , NEW2OLD);
+    calc_occlusion    (input.seg_ext , IN_ALL );
     sample_const_angle(input.seg_ext );
-    erase_img_outl    (input.seg_ext  );
-    split_com_len     (input.seg_ext);
-    calc_tf           (input.seg_ext  , OLD2NEW);
-    sample_const_angle(input.seg_ext);
-    split_com_len     (input.seg_ext);
-    link_init_ext     (input.seg_ext);
+    erase_img_outl    (input.seg_ext );
+    split_com_len     (input.seg_ext );
+    calc_tf           (input.seg_ext , OLD2NEW);
+    sample_const_angle(input.seg_ext );
+    split_com_len     (input.seg_ext );
+    link_init_ext     (input.seg_ext );
 
 
     sort_seg_init     (k.seg_init);
     split_com_len     (k.seg_init);
 
-    assign_seg_ext    (k.seg_init , k.seg_ext);
+    assign_seg_ext    (k.seg_init, k.seg_ext);
     calc_tf           (k.seg_init, OLD2NEW);
-    split_segments_for_occl(k.seg_ext  );
-    calc_occlusion    (k.seg_ext  , 0      );
-    calc_tf           (k.seg_ext  , OLD2NEW);
-    calc_occlusion    (k.seg_ext  , 1      );
-    sample_const_angle(k.seg_ext);
-    erase_img_outl    (k.seg_ext  );
-    split_com_len     (k.seg_ext);
-    link_init_ext     (k.seg_ext);
+    split_for_occl    (k.seg_ext );
+    calc_occlusion    (k.seg_ext , IN_SEG );
+    calc_tf           (k.seg_ext , OLD2NEW);
+    calc_occlusion    (k.seg_ext , IN_ALL );
+    sample_const_angle(k.seg_ext );
+    erase_img_outl    (k.seg_ext );
+    split_com_len     (k.seg_ext );
+    link_init_ext     (k.seg_ext );
 }
+
+///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 bool ang_sort_func    (SegmentDataPtr i, SegmentDataPtr j) { return (i->p.front().angle    < j->p.front().angle ); }
 
 void Segmentation::sort_seg_init(SegmentDataPtrVectorPtr &segments_init){
     std::sort(segments_init->begin(), segments_init->end(), ang_sort_func);
+    int k = 0;
+    for(SegmentDataPtrVectorIter it_in = segments_init->begin(); it_in != segments_init->end() ; it_in++){
+        (*it_in)->id = k++;
+    }
 }
+
+///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 bool Segmentation::in_range(polar p){
     if( ( p.r < sensor_range_max ) && ( p.angle <= angle_max ) && ( p.angle >= angle_min ) ){
@@ -136,6 +146,7 @@ void Segmentation::assign_seg_ext(const SegmentDataPtrVectorPtr &input, SegmentD
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
+
 template <class SegData>
 void Segmentation::calc_tf(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &input, TFmode tf_mode ){
     for(typename std::vector<boost::shared_ptr<SegData> >::iterator ss = input->begin(); ss != input->end(); ss++){
@@ -155,10 +166,9 @@ void Segmentation::calc_tf(boost::shared_ptr<std::vector<boost::shared_ptr<SegDa
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
-//TODO MAYBE WORK ONLY ON BIGGER R OCCLUDED AND RUN ON BOTH DIRECTIONS THE FUNCTION
-
-//this erases the ones out of range also
-void Segmentation::calc_occlusion(SegmentDataExtPtrVectorPtr &input, int occ_type ){
+// Removes also out of range points
+// Uses iterators
+void Segmentation::calc_occlusion(SegmentDataExtPtrVectorPtr &input, OcclType occ_type ){
     SegmentDataExtPtrVectorPtr temp( new SegmentDataExtPtrVector );
     temp->reserve(input->size());
     IteratorIndexSet<SegmentDataExt> iis(input);
@@ -175,19 +185,19 @@ void Segmentation::calc_occlusion(SegmentDataExtPtrVectorPtr &input, int occ_typ
             if( angle_max.angle < iis.p()->angle ){
                 angle_max = polar( *iis.p() );
             }
-            SegmentDataExtPtrVectorIter seg1 = iis.seg();//
+            SegmentDataExtPtrVectorIter seg1 = iis.seg();
 
             iis.advance(ALL_SEGM, INC);//increment
 
-            if(( occ_type == ONE_SEGM ) && ( seg1 != iis.seg() )){//
+            if(( occ_type == IN_SEG ) && ( seg1 != iis.seg() )){
                 angle_max = polar( *iis.p() );
                 seg1 = iis.seg();
-            }//
+            }
             if(in_range(*iis.p())){
                 if( iis.p()->angle < angle_max.angle ){
                     polar angle_min = polar( *iis.p() );
                     if( iis.p()->r < angle_max.r ){
-                        while(( temp->size() > 0 ) || (( temp->size() > 0 ) && ( occ_type == ONE_SEGM ) && ( seg1 == --temp->end() ) ) ){
+                        while(( temp->size() > 0 ) || (( temp->size() > 0 ) && ( occ_type == IN_SEG ) && ( seg1 == --temp->end() ) ) ){
                             if( angle_min.angle >= temp->back()->p.back().angle ){
                                 break;
                             }
@@ -208,7 +218,7 @@ void Segmentation::calc_occlusion(SegmentDataExtPtrVectorPtr &input, int occ_typ
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 //check more but now should work good
-void Segmentation::split_segments_for_occl(SegmentDataExtPtrVectorPtr &input){
+void Segmentation::split_for_occl(SegmentDataExtPtrVectorPtr &input){
     input->reserve(2 * input->size());
     SegmentDataExtPtrVectorPtr temp( new SegmentDataExtPtrVector );
     temp->reserve(input->size());
@@ -257,7 +267,7 @@ void Segmentation::split_segments_for_occl(SegmentDataExtPtrVectorPtr &input){
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
-//FINALLY WORKING!!!
+// Uses iterators
 void Segmentation::sample_const_angle(SegmentDataExtPtrVectorPtr &input){
     SegmentDataExtPtrVectorPtr temp( new SegmentDataExtPtrVector );
     temp->reserve(2*input->size());//heuristic preallocation
@@ -316,7 +326,7 @@ void Segmentation::sample_const_angle(SegmentDataExtPtrVectorPtr &input){
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
-//all cool
+// Uses iterators
 void Segmentation::erase_img_outl(SegmentDataExtPtrVectorPtr &input){
     SegmentDataExtPtrVectorPtr temp( new SegmentDataExtPtrVector );
     temp->reserve(input->size());
@@ -346,7 +356,7 @@ void Segmentation::erase_img_outl(SegmentDataExtPtrVectorPtr &input){
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
-
+// Uses iterators
 void Segmentation::check_neigh_p(const SegmentDataExtPtrVectorPtr &input, SegmentDataExtPtrVectorPtr &temp, std::vector<bool> &temp_valid, IteratorIndexSet<SegmentDataExt> iis){
     std::vector<IteratorIndexSet<SegmentDataExt> > neigh_seg;
     double p_prob = 0;
@@ -423,14 +433,14 @@ void Segmentation::link_init_ext(SegmentDataExtPtrVectorPtr &ext){
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
-//ALL COOL
+// Uses iterators
 template <class SegData>
-void Segmentation::split_com_len(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &input){
+void Segmentation::split_com_len(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &_input){
     double sample_dist = 0.05;
     boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > temp( new std::vector<boost::shared_ptr<SegData> > );
-    temp->reserve(input->size());
+    temp->reserve(_input->size());
 
-    IteratorIndexSet2<SegData> iis2(input);
+    IteratorIndexSet2<SegData> iis2(_input);
     iis2.maj().advance(ALL_SEGM,INC);
 
     if(iis2.status() >=IIS2_VALID){
@@ -475,5 +485,5 @@ void Segmentation::split_com_len(boost::shared_ptr<std::vector<boost::shared_ptr
             }
         }while(iis2.advance(ALL_SEGM,INC));
     }
-    input=temp;
+    _input=temp;
 }

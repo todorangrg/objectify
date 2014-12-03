@@ -228,3 +228,24 @@ xy   mat_mult(cv::Matx<double,3,3>& tf,xy p){
     return  xy (pi(0,0), pi(1,0));
 }
 
+cv::RotatedRect cov2rect(cv::Matx<double, 2, 2> _C,xy _center){
+    cv::RotatedRect ellipse;
+    cv::Mat_<double> eigval, eigvec;
+    cv::eigen(_C, eigval, eigvec);
+
+    /// Exercise4
+    bool index_x;
+    ellipse.center = _center;
+    if(_C(0,0)>_C(1,1)){
+        index_x=0;
+    }
+    else{
+        index_x=1;
+    }
+    ellipse.size.height=sqrt(fabs(eigval(0,!index_x)))*2.4477;//y
+    ellipse.size.width=sqrt(fabs(eigval(0,index_x)))*2.4477;//x
+    if((eigval(0,index_x)!=0)&&(eigval(0,!index_x)!=0))
+        ellipse.angle=atan2(eigvec(index_x,1),eigvec(index_x,0))*(180/M_PI);
+
+    return ellipse;
+}

@@ -45,6 +45,7 @@ enum IISmode{
 template<class SegData>
 class IteratorIndexSet{
 public:
+
     friend class IteratorIndexSet2<SegData>;
 
     boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > >&   input() {return input_;}
@@ -66,6 +67,7 @@ public:
     IteratorIndexSet(){}
     ~IteratorIndexSet(){}
 private:
+
     boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > >  input_;
     typename std::vector<boost::shared_ptr<SegData> >::iterator seg_;
     PointDataVectorIter   p_;
@@ -80,6 +82,7 @@ private:
 template<class SegData>
 class IteratorIndexSet2{
 public:
+
     IteratorIndexSet<SegData>& maj()  {return maj_;}
     IteratorIndexSet<SegData>& min()  {return min_;}
     IIS2status&       status(){return status_;}
@@ -92,6 +95,7 @@ public:
     IteratorIndexSet2(){}
     ~IteratorIndexSet2(){}
 private:
+
     IteratorIndexSet<SegData> maj_;
     IteratorIndexSet<SegData> min_;
     IIS2status       status_;

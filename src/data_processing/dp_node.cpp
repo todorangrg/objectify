@@ -35,11 +35,11 @@ int main( int argc , char **argv ) {
         dp.k.time_stamp = dp.input.time_stamp;
         dp.new_data = false;
 
-        plot_data.putInfoText("[ms]Full cycle time = ",(ros::Time::now() - t0).toNSec()* 1e-6,3,plot_data.black);//does not freeze value in step sim mode
+        std::stringstream info;
+        info.str(""); info<<"[ms]Full cycle time = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot_data.putInfoText(info,0,plot_data.black);//does not freeze value in step sim mode
+
         plot_data.update();
         plot_conv.update();
-
-
 
         bool update = ( dp.frame2frame && dp.frame2frame_callback ) || ( !dp.frame2frame );
         if(update){
@@ -91,7 +91,8 @@ void DataProcessingNode::callbackParameters (objectify::objectify_paramConfig &c
     param.viz_data_raw = config.viz_data_raw;
     param.viz_data_preproc = config.viz_data_preproc;
     param.viz_data_oult_preproc = config.viz_data_oult_preproc;
-    param.viz_data_segm    = config.viz_data_segm;
+    param.viz_data_segm_init   = config.viz_data_segm_init;
+    param.viz_data_segm_ext    = config.viz_data_segm_ext ;
 
     param.true_rob_pos = config.true_rob_pos;
     param.sensor_range_max = config.sensor_range_max;

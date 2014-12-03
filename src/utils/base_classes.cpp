@@ -13,6 +13,8 @@ void RecfgParam::init_normal_smooth_mask(){
     }
 }
 
+///------------------------------------------------------------------------------------------------------------------------------------------------///
+
 RState::RState(cv::Mat _S):
     xx(_S.at<double>(0)), xy(_S.at<double>(1)), xphi(_S.at<double>(2)){}
 
@@ -24,9 +26,6 @@ OiState::OiState(cv::Mat _S_O):
     ax(_S_O.at<double>(6)), ay(_S_O.at<double>(7)), aphi(_S_O.at<double>(8)){}
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
-
-
-
 
 ///TODO DISCARD AND USE TF LIBRARY
 void SensorTf::init() {
@@ -78,9 +77,13 @@ xy FrameTf::ro2rn(double _x, double _y) {
     return  xy(pi(0,0), pi(1,0));
 }
 
+///------------------------------------------------------------------------------------------------------------------------------------------------///
+
 SegmentDataExt& SegmentDataExt::operator= (const SegmentDataExt& seg){
   return *this;
 }
+
+///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 CorrInput::CorrInput(SegmentDataExtPtr _frame_old, SegmentDataExtPtr _frame_new, double _stitch_perc, bool _reverse) :
     frame_old(_frame_old),
@@ -88,6 +91,7 @@ CorrInput::CorrInput(SegmentDataExtPtr _frame_old, SegmentDataExtPtr _frame_new,
     stitch_perc(_stitch_perc),
     reverse(_reverse){}
 
+///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 InputData::InputData(PointDataVectorPtr &input, RState _rob_x, KInp _u, ros::Time _time_stamp) :
     rob_x(_rob_x),
@@ -102,3 +106,5 @@ InputData::InputData(PointDataVectorPtr &input, RState _rob_x, KInp _u, ros::Tim
             is_valid = true;
         }
 }
+
+///------------------------------------------------------------------------------------------------------------------------------------------------///

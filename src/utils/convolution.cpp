@@ -320,7 +320,7 @@ void Convolution::find_accepted_tf_zones(){
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
-void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){//maybe try with mean of the tf
+void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){
     Gauss g_x    , g_y    , g_angle,
           g_x_inv, g_y_inv, g_angle_inv;
     Gauss gt_x    , gt_y    , gt_angcos    , gt_angsin,
@@ -408,6 +408,94 @@ void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){//maybe tr
     conv_data[CONV_REF]->tf->push_back(TFdata(conv_accepted[0]->seg_spl, CONV_REF, score, tf_var    , tf_var_inv));
     conv_data[CONV_SPL]->tf->push_back(TFdata(conv_accepted[0]->seg_ref, CONV_SPL, score, tf_var_inv, tf_var    ));
 }
+//void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){//maybe try with mean of the tf
+//    Gauss g_x    , g_y    , g_angle,
+//          g_x_inv, g_y_inv, g_angle_inv;
+//    Gauss gt_x    , gt_y    , gt_angcos    , gt_angsin,
+//          gt_x_inv, gt_y_inv, gt_angcos_inv, gt_angsin_inv;
+//    cv::Matx33d T;
+//    cv::Matx33d Ti;
+//    xy com     = conv_data[CONV_REF]->com;
+//    xy com_inv = conv_data[CONV_SPL]->com;
+//    double weight_sum = 0;
+//    double score = 0;
+
+//    for(int i = c_acc_it_min; i < c_acc_it_max; i++){
+//        T  = conv_accepted[i]->T;
+//        xy tf_com     = mat_mult(T , com    );
+
+//        Ti = T.inv();
+//        xy tf_com_inv = mat_mult(Ti, com_inv);
+
+//        double weight  = conv_accepted[i]->score;
+
+//        double cos_angle;
+
+//        g_x          .add_w_sample((tf_com     - com).x, weight);
+//        g_y          .add_w_sample((tf_com     - com).y, weight);
+//        cos_angle = T(0,0);
+//        if     (cos_angle >   1.0){ cos_angle =   1.0;}
+//        else if(cos_angle < - 1.0){ cos_angle = - 1.0;}
+//        g_angle      .add_w_sample(acos(cos_angle)       , weight);
+//        gt_x         .add_w_sample(T(2) ,weight);
+//        gt_y         .add_w_sample(T(5) ,weight);
+//        gt_angcos    .add_w_sample(T(0) ,weight);
+//        gt_angsin    .add_w_sample(T(3) ,weight);
+
+//        g_x_inv      .add_w_sample((tf_com_inv - com_inv).x, weight);
+//        g_y_inv      .add_w_sample((tf_com_inv - com_inv).y, weight);
+//        cos_angle = Ti(0,0);
+//        if     (cos_angle >   1.0){ cos_angle =   1.0;}
+//        else if(cos_angle < - 1.0){ cos_angle = - 1.0;}
+//        g_angle_inv  .add_w_sample(acos(cos_angle)           , weight);
+//        gt_x_inv     .add_w_sample(Ti(2),weight);
+//        gt_y_inv     .add_w_sample(Ti(5),weight);
+//        gt_angcos_inv.add_w_sample(Ti(0),weight);
+//        gt_angsin_inv.add_w_sample(Ti(3),weight);
+
+//        weight_sum += weight;
+//        score      += sqr(weight);
+//    }
+//    score /= weight_sum;
+
+//    double cov_xy = 0, cov_xy_inv = 0;
+//    for(int i = c_acc_it_min; i < c_acc_it_max; i++){//TODO covariance computation is not perfect
+//        T  = conv_accepted[i]->T;
+//        xy tf_com     = mat_mult(T , com    );
+
+//        Ti = T.inv();
+//        xy tf_com_inv = mat_mult(Ti, com_inv);
+
+//        double weight  = conv_accepted[i]->score;
+
+//        double a     = ( (tf_com     - com    ).x - g_x.getMean()     ) ;
+//        double b     = ( (tf_com     - com    ).y - g_y.getMean()     ) ;
+//        cov_xy       += a     * b     * weight / weight_sum;
+
+//        double a_inv = ( (tf_com_inv - com_inv).x - g_x_inv.getMean() ) ;
+//        double b_inv = ( (tf_com_inv - com_inv).y - g_y_inv.getMean() ) ;
+//        cov_xy_inv   += a_inv * b_inv * weight / weight_sum;
+//    }
+//    T  = cv::Matx33d(gt_angcos    .getMean(), -gt_angsin    .getMean(), gt_x    .getMean(),
+//                     gt_angsin    .getMean(),  gt_angcos    .getMean(), gt_y    .getMean(),
+//                                           0,                        0,                 1);
+//    Ti = cv::Matx33d(gt_angcos_inv.getMean(), -gt_angsin_inv.getMean(), gt_x_inv.getMean(),
+//                     gt_angsin_inv.getMean(),  gt_angcos_inv.getMean(), gt_y_inv.getMean(),
+//                                           0,                        0,                 1);
+//    cv::Matx22d C (g_x.getVariance()    , cov_xy              ,
+//                   cov_xy               , g_y.getVariance()    );
+//    cv::Matx22d Ci(g_x_inv.getVariance(), cov_xy_inv          ,
+//                   cov_xy_inv           , g_y_inv.getVariance());
+
+
+//    //HERE ADD TF_COM !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+//    TfVar tf_var    (com    , T , xy(g_x    .getMean(), g_y    .getMean()), C , atan2(gt_angsin    .getMean(), gt_angcos    .getMean()), g_angle    .getVariance());
+//    TfVar tf_var_inv(com_inv, Ti, xy(g_x_inv.getMean(), g_y_inv.getMean()), Ci, atan2(gt_angsin_inv.getMean(), gt_angcos_inv.getMean()), g_angle_inv.getVariance());
+
+//    conv_data[CONV_REF]->tf->push_back(TFdata(conv_accepted[0]->seg_spl, CONV_REF, score, tf_var    , tf_var_inv));
+//    conv_data[CONV_SPL]->tf->push_back(TFdata(conv_accepted[0]->seg_ref, CONV_SPL, score, tf_var_inv, tf_var    ));
+//}
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 

@@ -1,6 +1,7 @@
 
 #include <opencv/cv.h>
 #include <opencv2/opencv.hpp>
+#include <fstream>
 #include "utils/iterators.h"
 #include "utils/base_classes.h"
 #include "data_processing/dp.h"
@@ -8,9 +9,10 @@
 #include "utils/convolution.h"
 #include "visual/plot_data.h"
 
+#include "boost/type_traits/is_same.hpp"
+
 
 using namespace cv;
-
 
 PlotData::PlotData(std::string wndView,RecfgParam &_param, SensorTf& _tf_sns):
     Plot(wndView),
@@ -23,19 +25,19 @@ PlotData::PlotData(std::string wndView,RecfgParam &_param, SensorTf& _tf_sns):
     tf_sns(_tf_sns){
 
     namedWindow(wndView_,CV_GUI_EXPANDED);
-    resizeWindow(wndView_,1300,900);
+    resizeWindow(wndView_,900 + 800,900);
     cv::moveWindow(wndView_, 0, 0);
-    plot = Mat(900, 900 + 400, CV_8UC3);
+    plot = Mat(900, 900 + 800, CV_8UC3);
     init_w2i();
     plot(Range(0,900),Range(0,900)).setTo(white);
-    plot(Range(0,900),Range(900,900 + 400)).setTo(gray);
+    plot(Range(0,900),Range(900,900 + 800)).setTo(gray);
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void PlotData::plot_points(const PointDataVectorPtr &data,Scalar color){
-    for (unsigned int i = 0; i < data->size(); i++){
-        circle(plot, w2i(tf_sns.s2r(to_xy(data->at(i)))),2,color);
+void PlotData::plot_points(PointDataVector &data,Scalar color){
+    for (PointDataVectorIter p = data.begin(); p != data.end(); p++){
+        circle(plot, w2i(tf_sns.s2r(to_xy(*p))),2,color);
     }
 }
 
@@ -58,35 +60,49 @@ void PlotData::plot_oult_circles(const std::vector<cv::RotatedRect>& plot_p_ell,
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
+template <class SegData>
+void PlotData::plot_segm(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &data,cv::Scalar color){
+    if(!data){
+        return;
+    }
+    for(typename std::vector<boost::shared_ptr<SegData> >::iterator it_data=data->begin(); it_data != data->end(); it_data++){
 
-void PlotData::plot_segm(SegmentDataExtPtrVectorPtr &data,cv::Scalar color){
-    IteratorIndexSet<SegmentDataExt> iis(data);
-    if(iis.status() >= IIS_VALID){
-        do{
-            circle(plot, w2i(tf_sns.s2r(to_xy(*iis.p()))),2,color);
-//            line(plot,w2i(s2r(0,0)), w2i(s2r(to_xy(*iis.p))),blue);
-            if( iis.status() == IIS_P_RBEGIN ){
-                putFullCircle(w2i(tf_sns.s2r((*iis.seg())->getCom())),1,5,color);
-                std::stringstream s;
-                s.precision(4);
-                s << /*"len="<<std::setw(3)<<(*iis.seg())->len<<*/ "  S:"<<(*iis.seg())->id;
-                if((*iis.seg())->getObj()){
-                    s <<"|O:"<<(*iis.seg())->getObj()->id;
-                }
-                putText(plot,s.str().c_str(),w2i(tf_sns.s2r((*iis.seg())->getCom())),FONT_HERSHEY_PLAIN,1,color);
-            }
-        }while( iis.advance(ALL_SEGM, INC));
+        plot_points((*it_data)->p, color);
+
+        xy com = (*it_data)->getCom();
+        putFullCircle(w2i(tf_sns.s2r(com)),1,4,color);
+
+        std::stringstream s; s.precision(4);
+        s//<<"l:" <<std::setw(3)<< (*it_data)->getLen()
+         <<"|S:"<<               (*it_data)->id
+         <<"|O:";
+        bool frame_old, init;
+        if((*it_data)->getObj()){                        s << (*it_data)->getObj()->id << "(t-1)"; frame_old = true; }
+        else{                                            s << "?"                      << "( t )"; frame_old = false;}
+        if(boost::is_same<SegData, SegmentData>::value){ s << "i";                                 init      = true; }
+        else{                                            s << "e";                                 init      = false;}
+        xy direct;
+        double len = 0.5;
+        double ang = M_PI / 6.0 ;
+        if     (frame_old && init){
+            direct = xy(len * cos(4.0 * ang + M_PI / 2.0), len * sin(4.0 * ang + M_PI / 2.0));
+        }
+        else if(frame_old && !init){
+            direct = xy(len * cos( 5.0 * ang + M_PI / 2.0), len * sin( 5.0 * ang + M_PI / 2.0));
+        }
+        else if(!frame_old && init){
+            direct = xy(len * cos(-2.0 * ang + M_PI / 2.0), len * sin(-2.0 * ang + M_PI / 2.0));
+        }
+        else if(!frame_old && !init){
+            direct = xy(len * cos(-1.0 * ang + M_PI / 2.0), len * sin(-1.0 * ang + M_PI / 2.0));
+        }
+        line   (plot, w2i(tf_sns.s2r(com)), w2i(tf_sns.s2r(com + direct)), color);
+        putText(plot,s.str().c_str(),w2i(tf_sns.s2r(com + direct)),FONT_HERSHEY_PLAIN,1,color);
     }
 }
 
-void PlotData::plot_segm_init(SegmentDataPtrVectorPtr &data,cv::Scalar color){
-    IteratorIndexSet<SegmentData> iis(data);
-    if(iis.status() >= IIS_VALID){
-        do{
-            circle(plot, w2i(tf_sns.s2r(to_xy(*iis.p()))),2,color);
-        }while( iis.advance(ALL_SEGM, INC));
-    }
-}
+template void PlotData::plot_segm<SegmentData>   (SegmentDataPtrVectorPtr    &data, cv::Scalar color);
+template void PlotData::plot_segm<SegmentDataExt>(SegmentDataExtPtrVectorPtr &data, cv::Scalar color);
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
@@ -162,6 +178,7 @@ void PlotData::plot_kalman(const SegmentDataExtPtrVectorPtr &data, KalmanSLDM& k
     if(!data){
         return;
     }
+
     putArrow(w2i(0,0),w2i(k.S.at<double>(0,0) - k.S_R_bar.at<double>(0,0),k.S.at<double>(1,0) - k.S_R_bar.at<double>(1,0)),magenta,2);
 
     cv::Matx33d Mw2i33(Mw2i);
@@ -232,13 +249,17 @@ void PlotData::update(){
         imshow(wndView_,plot);
         waitKey(10);
 
+        for(int i=0; i<50 ; i++){
+            text[i] = false;
+        }
+
         plot.release();
         namedWindow(wndView_, 1);
 //        cv::moveWindow(wndView_, 0, 0);
-        plot = Mat(image_size, image_size + 400, CV_8UC3);
+        plot = Mat(image_size, image_size + 800, CV_8UC3);
         init_w2i();
         plot(Range(0,image_size),Range(0,image_size)).setTo(white);
-        plot(Range(0,image_size),Range(image_size,image_size + 400)).setTo(gray);
+        plot(Range(0,image_size),Range(image_size,image_size + 800)).setTo(gray);
 
         if (plot_grid) {
             for (double y = -round(sensor_range_max + 1); y <= round(sensor_range_max + 1); y+=1.0) {
@@ -265,10 +286,29 @@ void PlotData::update(){
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void PlotData::putInfoText(const string &text,double var,int row,Scalar color){
-    std::stringstream ss;
-    ss << var;
-    putText(plot,text+ss.str().c_str(),xy(image_size,row*15),FONT_HERSHEY_PLAIN,1,color);
+void PlotData::putInfoText(std::stringstream &text_data,int row,Scalar color){
+    int no_of_lines = 0; int k=0;
+    text_data<<std::endl;
+    std::stringstream text_data_cpy[2]; text_data_cpy[0].str(text_data.str()); text_data_cpy[1].str(text_data.str());
+    std::string line;
+    while(std::getline(text_data_cpy[0], line)){
+        no_of_lines++;
+    }
+    while((row < 50)&&(k < no_of_lines)){
+        k++;
+        if(text[row] == true){
+            k=0;
+        }
+        row++;
+    }
+    if(row == 50){
+        return;
+    }
+    row = row - no_of_lines;
+    while(std::getline(text_data_cpy[1], line)){
+        text[row] = true;
+        putText(plot,line.c_str(),xy(image_size, 15 * ++row),FONT_HERSHEY_PLAIN,1,color);
+    }
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -293,4 +333,6 @@ void PlotData::init_w2i() {
     Mw2i = T * R * M * Sc;
 //    std::cout <<  "Mw2i = " << std::endl << Mw2i << std::endl;
 }
+
+
 

@@ -2,12 +2,9 @@
 #define CONVOLUTION_H
 #include"utils/base_classes.h"
 
-
-
-
-
 class ConvolInfo{
 public:
+
     int    shift_spl;
     int    it_min_ref;
     int    it_max_ref;
@@ -25,13 +22,16 @@ public:
     SegmentDataExtPtr seg_ref;
     SegmentDataExtPtr seg_spl;
 
+    //Constructors & Destructors
     ConvolInfo(int _shift_spl,xy _com_ref, xy _com_spl,Gauss _ang_distr):shift_spl(_shift_spl),ang_distr(_ang_distr),com_ref(_com_ref),com_spl(_com_spl),com_dr(diff(com_ref,com_spl)),sqr_err(0),score(0){}
     ConvolInfo(int _shift_spl,xy _com_ref, xy _com_spl)                 :shift_spl(_shift_spl),                      com_ref(_com_ref),com_spl(_com_spl),com_dr(diff(com_ref,com_spl)),sqr_err(0),score(0){}
     ConvolInfo(int _shift_spl,SegmentDataExtPtr _seg_ref, SegmentDataExtPtr _seg_spl):shift_spl(_shift_spl),seg_ref(_seg_ref),seg_spl(_seg_spl){}
+    ~ConvolInfo(){}
 };
 
 class AngKeyDataBase{
 public:
+
     int no_keys;
     void init();
     int* add   (double angle);
@@ -39,6 +39,7 @@ public:
 
     AngKeyDataBase(double& _d_angl):d_angl(_d_angl){}
 private:
+
     std::vector<int> keys;
     double&          d_angl;
     int normalize_key(int ang_key);
@@ -50,7 +51,10 @@ class Convolution{
 public:
 
     void runConvolution();
+
+    //Constructors & Destructors
     Convolution(RecfgParam &_param);
+    ~Convolution(){}
 protected:
 
     boost::shared_ptr<ConvData>                     conv_data[2];   //ref and spl const_dist sampled point info
@@ -61,6 +65,7 @@ protected:
     void convolute();
     void fade_out_snapped_p();
 private:
+
     void sample_const_dist(SegmentDataExtPtr& input,ConvolStatus conv_stat);
     void smooth_normals(ConvolStatus conv_stat);
 

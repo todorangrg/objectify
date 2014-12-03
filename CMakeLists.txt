@@ -128,6 +128,9 @@ add_library(${ALIAS}_utils_lib
   src/utils/math.cpp 
   src/utils/iterators.cpp
   src/utils/kalman.cpp
+  src/utils/kalman_base.cpp
+  src/utils/kalman_predict.cpp
+  src/utils/kalman_update.cpp
   src/utils/convolution.cpp
   ${UTILS_HEADERS}
 )

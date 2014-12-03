@@ -14,24 +14,20 @@
 
 
 class Correlation : public Convolution{
-
 public:
-    void run(InputData& input, KalmanSLDM k, bool new_frame);
-    void plot_all_data(InputData& input, KalmanSLDM k, cv::Scalar color_old, cv::Scalar color_new);
-
-
-    //Constructors
-    Correlation(RecfgParam &_param,PlotData& _plot,PlotConv& _plot_conv);
 
     std::map <SegmentDataPtr   , std::vector<NeighDataInit> > neigh_data_init[2];
     std::map <SegmentDataExtPtr, std::vector<NeighDataExt > > neigh_data_ext [2];
 
+    void run(InputData& input, KalmanSLDM k, bool new_frame);
+    void plot_all_data(InputData& input, KalmanSLDM k, cv::Scalar color_old, cv::Scalar color_new);
+
+    //Constructors & Destructors
+    Correlation(RecfgParam &_param,PlotData& _plot,PlotConv& _plot_conv);
+    ~Correlation(){}
 private:
+
     void update_neigh_list();
-
-
-
-
 
     std::vector<CorrInput> corr_list;
 
@@ -58,6 +54,9 @@ private:
     void debug_cout_segment   (SegmentDataBase &it_seg, bool old);
     void debug_cout_neigh_list(FrameStatus fr_status);
     void debug_cout_corr_queue(std::vector<CorrInput>& corr_queue);
+
+    std::string print_segment(SegmentDataBase& it_seg);
+    void              print_neigh_list(FrameStatus fr_status);
 };
 
 #endif // CORRELATION_H

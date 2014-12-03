@@ -5,32 +5,34 @@
 
 class NeighData;
 
-
-
-
-
 class ObjMat{
 public:
+
     int i_min;
     cv::Mat S_O;
     cv::Mat P_OO;
 };
 
-
 class KalmanSLDM{
 public:
+
     void run(InputData &input, std::map <SegmentDataExtPtr,
-             std::vector<NeighDataExt> >& neigh_data_o,
-             std::map <SegmentDataExtPtr, std::vector<NeighDataExt > >& neigh_data_n,
+             std::vector<NeighDataExt> >& neigh_data_oe,
+             std::map <SegmentDataExtPtr, std::vector<NeighDataExt > >& neigh_data_ne,
              std::map <SegmentDataPtr   , std::vector<NeighDataInit> >& neigh_data_oi);
+
+    void extract_common_pairs(std::vector<ObjectDataPtr>                              &o_comm,
+                              std::vector<CorrInput>                                  &list_comm,
+                              std::map<SegmentDataExtPtr, std::vector<NeighDataExt> > &neigh_data_oe,
+                              std::map<SegmentDataExtPtr, std::vector<NeighDataExt> > &neigh_data_ne);
+    bool compute_avg_miu_sigma(std::vector<CorrInput> & list_comm, KObjZ & avg);
 
 
     void init(RState rob_x);
 
-    void prediction(SegmentDataPtrVectorPtr &input, KInp u);
+    void prediction(SegmentDataPtrVectorPtr &input, KInp &u);
     void init_Oi(ObjectDataPtr obj, xy obj_com_bar_f1);
     void update_Oi(ObjectDataPtr seg, KObjZ kObjZ);
-    void update_Oi_with_Oj(ObjectDataPtr seg, ObjectDataPtr seg_obs);
 
     SegmentDataPtrVectorPtr    seg_init_old;
 
@@ -53,8 +55,6 @@ public:
     void advance(InputData& input, bool advance);
     //advance-erase-object list
     //advance-segext-new-obj    ....make it a map...the ones that are not in here get erased
-
-
 private:
 
     void predict_rob(RState  rob_f0, KInp u, cv::Mat& Gt_R, cv::Mat& Q);
@@ -87,7 +87,6 @@ private:
 
     double v_static;
     double w_static;
-
 
     cv::Mat P_RO;
     cv::Mat P_OR;
