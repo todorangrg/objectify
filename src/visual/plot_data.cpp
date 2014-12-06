@@ -11,7 +11,6 @@
 
 #include "boost/type_traits/is_same.hpp"
 
-
 using namespace cv;
 
 PlotData::PlotData(std::string wndView,RecfgParam &_param, SensorTf& _tf_sns):
@@ -179,7 +178,7 @@ void PlotData::plot_kalman(const SegmentDataExtPtrVectorPtr &data, KalmanSLDM& k
         return;
     }
 
-    putArrow(w2i(0,0),w2i(k.S.at<double>(0,0) - k.S_R_bar.at<double>(0,0),k.S.at<double>(1,0) - k.S_R_bar.at<double>(1,0)),magenta,2);
+    putArrow(w2i(0,0),w2i(k.S.at<double>(0,0) - k.S_bar.at<double>(0,0), k.S.at<double>(1,0) - k.S_bar.at<double>(1,0)),magenta,2);
 
     cv::Matx33d Mw2i33(Mw2i);
     cv::Matx22d Mw2i22(Mw2i33(0,0),Mw2i33(0,1),Mw2i33(1,0),Mw2i33(1,1));
@@ -187,9 +186,9 @@ void PlotData::plot_kalman(const SegmentDataExtPtrVectorPtr &data, KalmanSLDM& k
 
     cv::Matx22d cov_xy22(cov_xy33(0,0),cov_xy33(0,1),cov_xy33(1,0),cov_xy33(1,1));
 
-    double rob_bar_xx_f0   = k.S_R_bar.at<double>(0,0);
-    double rob_bar_xy_f0   = k.S_R_bar.at<double>(1,0);
-    double rob_bar_xphi_f0 = k.S_R_bar.at<double>(2,0);
+    double rob_bar_xx_f0   = k.S_bar.at<double>(0,0);
+    double rob_bar_xy_f0   = k.S_bar.at<double>(1,0);
+    double rob_bar_xphi_f0 = k.S_bar.at<double>(2,0);
     cv::Matx22d rot_rob_bar(cos(-rob_bar_xphi_f0),-sin(-rob_bar_xphi_f0),sin(-rob_bar_xphi_f0), cos(-rob_bar_xphi_f0));
 
     cov_xy22 = Mw2i22 * rot_rob_bar * cov_xy22 *rot_rob_bar.t() * Mw2i22.t();
@@ -334,5 +333,4 @@ void PlotData::init_w2i() {
 //    std::cout <<  "Mw2i = " << std::endl << Mw2i << std::endl;
 }
 
-
-
+///------------------------------------------------------------------------------------------------------------------------------------------------///

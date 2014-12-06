@@ -5,31 +5,33 @@
 using namespace cv;
 using namespace std;
 
+///------------------------------------------------------------------------------------------------------------------------------------------------///
+
+KalmanSLDM::KalmanSLDM(RecfgParam& _param, SensorTf& _tf_sns) :
+    tf_sns(_tf_sns),
+    rob_alfa_1(_param.kalman_rob_alfa_1),
+    rob_alfa_2(_param.kalman_rob_alfa_2),
+    rob_alfa_3(_param.kalman_rob_alfa_3),
+    rob_alfa_4(_param.kalman_rob_alfa_4),
+    obj_alfa_xy(_param.kalman_obj_alfa_xy),
+    obj_alfa_phi(_param.kalman_obj_alfa_phi),
+    obj_timeout(_param.kalman_obj_timeout){}
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 void KalmanSLDM::init(RState rob_x){
-    seg_init_plus = SegmentDataPtrVectorPtr(new SegmentDataPtrVector());
     pos_init = false;
-    S.release(); S_R_bar.release(); P.release();;
+    S.release(); S_bar.release(); P.release();;
     Oi.clear();
     v_static = 0;
     w_static = 0;
-    input_noise[0] = 1;//v in v noise
-    input_noise[1] = 0.1;//w in v noise
-    input_noise[2] = 0.1;//v in w noise
-    input_noise[3] = 1;//w in w noise
-    input_noise[4] = 0;//100;//dt noise
-    obj_noise_x = 0.01;
-    obj_noise_y = 0.01;
-    obj_noise_phi = 0.0001;
 
-    S_R_bar.push_back(0.);      S_R_bar.push_back(0.);      S_R_bar.push_back(0.);
-    S      .push_back(rob_x.xx); S      .push_back(rob_x.xy); S      .push_back(rob_x.xphi);
+    S_bar.push_back(0.);       S_bar.push_back(0.);       S_bar.push_back(0.);
+    S    .push_back(rob_x.xx); S    .push_back(rob_x.xy); S    .push_back(rob_x.xphi);
     P = Mat::zeros(rob_param, rob_param, CV_64F);
 
-    S_R_bar_old.push_back(0.);      S_R_bar_old.push_back(0.);      S_R_bar_old.push_back(0.);
-    S_old      .push_back(rob_x.xx); S_old      .push_back(rob_x.xy); S_old      .push_back(rob_x.xphi);
+    S_bar_old.push_back(0.);       S_bar_old.push_back(0.);       S_bar_old.push_back(0.);
+    S_old    .push_back(rob_x.xx); S_old    .push_back(rob_x.xy); S_old    .push_back(rob_x.xphi);
     P_old = Mat::zeros(rob_param, rob_param, CV_64F);
 
     //cout<<"S="<<endl<<" "<<S<<endl<<endl;
@@ -82,15 +84,16 @@ bool KalmanSLDM::add_obj(ObjectDataPtr seg, KObjZ kObjZ){
 //    Mat(Gt_hinv_R * P_RR * Gt_hinv_R.t()  + Gt_hinv_Z * Mat(kObjZ.Q)  * Gt_hinv_Z.t()).copyTo(Oi[seg].P_OO);  ???
 
     Mat P_OO_V(9, 9, CV_64F, 0.);
-    P_OO_V.row(0).col(0) = 1;//initial covariance of x,v,a TODO....for x you should add the Q stuff
-    P_OO_V.row(1).col(1) = 1;
-    P_OO_V.row(2).col(2) = 1;
-    P_OO_V.row(3).col(3) = 1;
-    P_OO_V.row(4).col(4) = 1;
-    P_OO_V.row(5).col(5) = 1;
-    P_OO_V.row(6).col(6) = 1;
-    P_OO_V.row(7).col(7) = 1;
-//    P_OO_V.row(8).col(8) = 1;
+    double init_cov = 1;
+    P_OO_V.row(0).col(0) = init_cov;//initial covariance of x,v,a TODO....for x you should add the Q stuff
+    P_OO_V.row(1).col(1) = init_cov;
+    P_OO_V.row(2).col(2) = init_cov;
+    P_OO_V.row(3).col(3) = init_cov;
+    P_OO_V.row(4).col(4) = init_cov;
+    P_OO_V.row(5).col(5) = init_cov;
+    P_OO_V.row(6).col(6) = init_cov;
+    P_OO_V.row(7).col(7) = init_cov;
+    //P_OO_V.row(8).col(8) = 1;
     P_OO_V.copyTo(Oi[seg].P_OO);
 
     Mat(Gt_hinv_R * P.rowRange(0, rob_param).colRange(0, P.cols - obj_param)).copyTo(P_ORi);
@@ -108,7 +111,7 @@ bool KalmanSLDM::add_obj(ObjectDataPtr seg, KObjZ kObjZ){
 bool KalmanSLDM::rmv_obj(ObjectDataPtr seg){
     //cout<<"removing object with id"<<test_id<<endl;
     if(Oi.count(seg) == 0){
-//        cout<<"attempting to remove inexisting key"<<endl;
+        //cout<<"attempting to remove inexisting key"<<endl;
         return false;
     }
     int i_min = Oi[seg].i_min;
@@ -134,7 +137,6 @@ bool KalmanSLDM::rmv_obj(ObjectDataPtr seg){
     }
     update_sub_mat();
 
-
     //cout<<"S="<<endl<<" "<<S<<endl<<endl;
     //cout<<"P="<<endl<<" "<<P<<endl<<endl;
     return true;
@@ -151,7 +153,6 @@ void KalmanSLDM::update_sub_mat(){
     else{
         P_OR.release(); P_RO.release(); P_OO.release();
     }
-
     for(map<ObjectDataPtr, ObjMat>::iterator oi = Oi.begin();oi != Oi.end(); oi++){
         int i_min = oi->second.i_min;
         oi->second.S_O   = S.rowRange(i_min, i_min + obj_param);
@@ -173,3 +174,17 @@ cv::Mat KalmanSLDM::Fxi(ObjectDataPtr seg){
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
+
+int KalmanSLDM::assign_unique_id(){
+    const int max_no_obj = 50;
+    bool ids[max_no_obj];
+    for(std::map<ObjectDataPtr, ObjMat>::iterator oi = Oi.begin(); oi != Oi.end(); oi++){
+        ids[oi->first->id] = true;
+    }
+    for(int i=0; i < max_no_obj; i++){
+        if(ids[i] == false){
+            return i;
+        }
+    }
+    return -1;
+}

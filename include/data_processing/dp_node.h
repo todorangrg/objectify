@@ -54,8 +54,12 @@ private:
     typedef message_filters::sync_policies::ApproximateTime< nav_msgs::Odometry, sensor_msgs::LaserScan > MySyncPolicy;
     message_filters::Synchronizer<MySyncPolicy>           sync;
 
-
     Distributions nd;
+
+    double sim_rob_alfa_1;
+    double sim_rob_alfa_2;
+    double sim_rob_alfa_3;
+    double sim_rob_alfa_4;
 
     double quaternion2Angle2D ( const geometry_msgs::Quaternion &quat );
 };

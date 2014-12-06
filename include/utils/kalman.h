@@ -16,82 +16,92 @@ public:
 class KalmanSLDM{
 public:
 
-    void run(InputData &input, std::map <SegmentDataExtPtr,
-             std::vector<NeighDataExt> >& neigh_data_oe,
-             std::map <SegmentDataExtPtr, std::vector<NeighDataExt > >& neigh_data_ne,
-             std::map <SegmentDataPtr   , std::vector<NeighDataInit> >& neigh_data_oi);
+    bool pos_init;
 
-    void extract_common_pairs(std::vector<ObjectDataPtr>                              &o_comm,
-                              std::vector<CorrInput>                                  &list_comm,
-                              std::map<SegmentDataExtPtr, std::vector<NeighDataExt> > &neigh_data_oe,
-                              std::map<SegmentDataExtPtr, std::vector<NeighDataExt> > &neigh_data_ne);
-    bool compute_avg_miu_sigma(std::vector<CorrInput> & list_comm, KObjZ & avg);
-
-
-    void init(RState rob_x);
-
-    void prediction(SegmentDataPtrVectorPtr &input, KInp &u);
-    void init_Oi(ObjectDataPtr obj, xy obj_com_bar_f1);
-    void update_Oi(ObjectDataPtr seg, KObjZ kObjZ);
-
-    SegmentDataPtrVectorPtr    seg_init_old;
-
-    SegmentDataPtrVectorPtr    seg_init_new;
     SegmentDataPtrVectorPtr    seg_init;
     SegmentDataExtPtrVectorPtr seg_ext;
     ros::Time                  time_stamp;
     std::map<ObjectDataPtr, ObjMat> Oi;
-    cv::Mat S_R_bar;
     cv::Mat S;
+    cv::Mat S_bar;
     cv::Mat P;
 
-    RState rob_x(){return RState(S);}
+    void init      (RState rob_x);
+    void prediction(SegmentDataPtrVectorPtr &input, KInp &u);
+    void advance   (InputData & input, bool advance);
+    void run       (InputData & input,
+                    std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >  & neigh_data_oe,
+                    std::map <SegmentDataExtPtr, std::vector<NeighDataExt > > & neigh_data_ne,
+                    std::map <SegmentDataPtr   , std::vector<NeighDataInit> > & neigh_data_oi);
+
+    RState rob_x_now(){return RState(S);}
+    RState rob_x_bar(){return RState(S_bar);}
     RState rob_x_old(){return RState(S_old);}
-    bool pos_init;
 
-    std::vector<ObjectDataPtr> adv_erase_obj;
-    std::map<SegmentDataExtPtr, ObjectDataPtr> seg_ext_new_obj;
-    std::vector<SegmentDataPtr> adv_no_innv_seg;
-    void advance(InputData& input, bool advance);
-    //advance-erase-object list
-    //advance-segext-new-obj    ....make it a map...the ones that are not in here get erased
+    //Constructors & Destructors
+    KalmanSLDM(RecfgParam& _param, SensorTf& _tf_sns);
+    ~KalmanSLDM(){}
 private:
-
-    void predict_rob(RState  rob_f0, KInp u, cv::Mat& Gt_R, cv::Mat& Q);
-    void predict_obj(KInp u, cv::Mat &Gt, cv::Mat& Q);
-    void predict_p_cloud(SegmentDataPtrVectorPtr &input, RState  rob_f0, KInp u);
-
-    std::map<ObjectDataPtr, ObjMat> Oi_old;
-    cv::Mat S_R_bar_old;
-    cv::Mat S_old;
-    cv::Mat P_old;
-
-    SegmentDataPtrVectorPtr    seg_init_plus;
-
-    cv::Mat Gt_Oi(double dt);
-    cv::Mat Q_Oi (double dt);
-
-    bool add_obj(ObjectDataPtr seg, KObjZ kObjZ);
-    bool rmv_obj(ObjectDataPtr seg);
-    cv::Mat Fxi(ObjectDataPtr seg);
-    void update_sub_mat();
-
     static const int rob_param   = 3;
     static const int obj_param   = 9;
     static const int input_param = 3;
     static const int z_param     = 3;
-    double input_noise[5];
-    double obj_noise_x;
-    double obj_noise_y;
-    double obj_noise_phi;
 
-    double v_static;
-    double w_static;
+    double  v_static;
+    double  w_static;
 
     cv::Mat P_RO;
     cv::Mat P_OR;
     cv::Mat P_OO;
-};
 
+    SegmentDataPtrVectorPtr    seg_init_old;
+    std::map<ObjectDataPtr, ObjMat> Oi_old;
+    cv::Mat S_old;
+    cv::Mat S_bar_old;
+    cv::Mat P_old;
+
+    //kalman_base ---
+    int  assign_unique_id();
+    void update_sub_mat();
+    bool add_obj(ObjectDataPtr seg, KObjZ kObjZ);
+    bool rmv_obj(ObjectDataPtr seg);
+    cv::Mat  Fxi(ObjectDataPtr seg);
+    // ---kalman_base
+
+    //kalman_prediction ---
+    void predict_rob    (RState  rob_f0, KInp u, cv::Mat& Gt_R, cv::Mat& Q);
+    void predict_obj    (KInp u, cv::Mat &Gt, cv::Mat& Q);
+    void predict_p_cloud(SegmentDataPtrVectorPtr &input, RState  rob_f0, KInp u);
+    cv::Mat Gt_Oi(double dt);
+    cv::Mat Q_Oi (double dt);
+    // ---kalman_prediction
+
+    //kalman_update ---
+    void init_Oi  (ObjectDataPtr obj, xy obj_com_bar_f1, double dt);
+    void update_Oi(ObjectDataPtr seg, KObjZ kObjZ);
+    // ---kalman_update
+
+    //kalman_update ---
+    void extract_common_pairs   (std::vector<ObjectDataPtr>                               &    o_comm,
+                                 std::vector<CorrInput>                                   & list_comm,
+                                 std::map<SegmentDataExtPtr, std::vector<NeighDataExt > > & neigh_data_oe,
+                                 std::map<SegmentDataExtPtr, std::vector<NeighDataExt > > & neigh_data_ne);
+    void propagate_no_update_obj(std::map <SegmentDataPtr  , std::vector<NeighDataInit> > & neigh_data_oi);
+    bool compute_avg_miu_sigma(std::vector<CorrInput> & list_comm, KObjZ & avg);
+    void propag_extr_p_clouds (std::vector<CorrInput> & list_comm, std::map<ObjectDataPtr  , ObjMat>::iterator                        oi);
+    void add_new_obj          (SegmentDataPtrVectorPtr & input   , std::map <SegmentDataPtr, std::vector<NeighDataInit> >& neigh_data_oi);
+    void remove_lost_obj();
+    // ---kalman_update
+
+    double&   rob_alfa_1;
+    double&   rob_alfa_2;
+    double&   rob_alfa_3;
+    double&   rob_alfa_4;
+    double&   obj_alfa_xy;
+    double&   obj_alfa_phi;
+    double&   obj_timeout;
+
+    SensorTf& tf_sns;
+};
 
 #endif // KALMAN_H

@@ -10,6 +10,7 @@ extern const char* CorrFlagNames[];
 DataProcessing::DataProcessing(RecfgParam& param,SensorTf& _tf_sns,PlotData& plot,PlotConv& plot_conv) :
     param(param),
     preprocessing(param,plot),
+    k(param, _tf_sns),
     segmentation(param,_tf_sns, plot, k),
     correlation(param,plot,plot_conv),
     tf_sns(_tf_sns),
@@ -30,6 +31,11 @@ void DataProcessing::run(bool new_frame){
     if(input.sensor_raw){ p_size += input.sensor_raw->size(); }
     info.str(""); info<<"[ n]raw_frames no_p = "<< p_size;    plot.putInfoText(info,0,plot.black);
     info.str(""); info<<"[ms]delta t_frame   = "<<input.u.dt; plot.putInfoText(info,0,plot.black);
+    static int i=0;
+    if(i < 10){
+        i++;
+        return;
+    }
 
     //advance kalman in main
     k.prediction(k.seg_init, input.u);

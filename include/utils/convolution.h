@@ -86,6 +86,7 @@ private:
     double         com_dr_max;
 
     double&            sample_dist;
+    double&            min_len_perc;
     double&            marg_extr_excl;
     std::list<double>& smooth_mask;
 

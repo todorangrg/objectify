@@ -343,15 +343,20 @@ void PlotConv::plot_conv_points(std::vector<boost::shared_ptr<ConvolInfo> > &con
             if(conv_data[conv_stat]->tf->at(j).seg->getObj()){s<<" t-1";}
             else                                             {s<<"  t ";}
             s<<"w= "<<conv_data[conv_stat]->tf->at(j).score;
-            putText(plot,s.str().c_str(),w2i(conv_data[conv_stat]->com + conv_data[conv_stat]->tf->at(j).tf.xy_mean),FONT_HERSHEY_PLAIN,1,color);s.str(std::string());
 
-            cv::Matx33d cov_xy33(conv_data[conv_stat]->tf->at(j).tf.xy_cov(0,0), conv_data[conv_stat]->tf->at(j).tf.xy_cov(0,1), 0,
-                                 conv_data[conv_stat]->tf->at(j).tf.xy_cov(1,0), conv_data[conv_stat]->tf->at(j).tf.xy_cov(1,1), 0,
-                                                                              0,                                              0, 0);
+            xy    com = conv_data[conv_stat]->com;
+            xy tf_com = mat_mult(conv_data[conv_stat]->tf->at(j).tf.T, com);
+
+            putText(plot,s.str().c_str(),w2i(tf_com),FONT_HERSHEY_PLAIN,1,color);s.str(std::string());
+            cv::Matx33d cov_xy33(conv_data[conv_stat]->tf->at(j).tf.Q);
+            cov_xy33(2,2) = 0.;
+
             cov_xy33 = Mw2i33 * cov_xy33 * Mw2i33.t();
+
             cv::Matx22d cov_xy22(cov_xy33(0,0),cov_xy33(0,1),cov_xy33(1,0),cov_xy33(1,1));
-            putArrow(w2i(conv_data[conv_stat]->com), w2i(conv_data[conv_stat]->com + conv_data[conv_stat]->tf->at(j).tf.xy_mean),green_dark,2);
-            cv::RotatedRect ellips = cov2rect(cov_xy22,w2i(conv_data[conv_stat]->com + conv_data[conv_stat]->tf->at(j).tf.xy_mean));
+
+            putArrow(w2i(com), w2i(tf_com),green_dark,2);
+            cv::RotatedRect ellips = cov2rect(cov_xy22,w2i(tf_com));
             cv::ellipse(plot,ellips,green_dark,2);
         }
     }

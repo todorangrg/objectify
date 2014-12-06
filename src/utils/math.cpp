@@ -217,7 +217,7 @@ void set_tf_mat(cv::Matx<double,3,3>& tf, xy trans, double rot){
                                       0,           0,   1);    // Translate
     // Calculate final transformation matrix
     tf = T * R;
-//    Mptf = Mptf.inv();
+    //Mptf = Mptf.inv();
     //std::cout <<  "Ms2r = " << std::endl << Ms2r << std::endl;
     //std::cout <<  "Mr2s = " << std::endl << Mr2s << std::endl;
 }

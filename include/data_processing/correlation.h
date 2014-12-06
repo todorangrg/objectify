@@ -51,12 +51,9 @@ private:
     PlotData& plot_data;
     PlotConv& plot_conv;
 
-    void debug_cout_segment   (SegmentDataBase &it_seg, bool old);
-    void debug_cout_neigh_list(FrameStatus fr_status);
-    void debug_cout_corr_queue(std::vector<CorrInput>& corr_queue);
 
     std::string print_segment(SegmentDataBase& it_seg);
-    void              print_neigh_list(FrameStatus fr_status);
+    void        print_neigh_list(FrameStatus fr_status);
 };
 
 #endif // CORRELATION_H

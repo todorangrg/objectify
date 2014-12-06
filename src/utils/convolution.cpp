@@ -9,6 +9,7 @@ Convolution::Convolution(RecfgParam &_param):
     SVD(_param.convol_SVD),
 
     sample_dist(_param.convol_sample_dist),
+    min_len_perc(_param.convol_min_len_perc),
     marg_extr_excl(_param.convol_marg_extr_excl),
     smooth_mask(_param.smooth_mask),
     ang_key_db(_param.convol_key_d_angle),
@@ -22,41 +23,8 @@ Convolution::Convolution(RecfgParam &_param):
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void Convolution::runConvolution(){
-
-}
-
-///------------------------------------------------------------------------------------------------------------------------------------------------///
-
-bool Convolution::create_normal_database(CorrInput& pair){
-    if(pair.reverse){
-        sample_const_dist(pair.frame_new,CONV_REF);
-        sample_const_dist(pair.frame_old,CONV_SPL);
-    }
-    else{
-        sample_const_dist(pair.frame_new,CONV_SPL);
-        sample_const_dist(pair.frame_old,CONV_REF);
-    }
-    return true;
-}
-
-///------------------------------------------------------------------------------------------------------------------------------------------------///
-
-void Convolution::fade_out_snapped_p(){
-    for(int i=0; i < conv_accepted.size(); i++){
-        for(int j = conv_accepted[i]->it_min_ref; j < conv_accepted[i]->it_max_ref; j++){
-            conv_data[CONV_REF]->p_cd->at(j                            ).fade_out+= 1.0 / (double)conv_accepted.size();
-            conv_data[CONV_SPL]->p_cd->at(j+conv_accepted[i]->shift_spl).fade_out+= 1.0 / (double)conv_accepted.size();
-        }
-    }
-}
-
-///------------------------------------------------------------------------------------------------------------------------------------------------///
-
 bool d_sort_func    (boost::shared_ptr<ConvolInfo> i, boost::shared_ptr<ConvolInfo> j) { return (i->com_dr    < j->com_dr ); }
 bool shift_sort_func(boost::shared_ptr<ConvolInfo> i, boost::shared_ptr<ConvolInfo> j) { return (i->shift_spl < j->shift_spl); }
-
-///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 void Convolution::convolute(){
     if(full_search){ com_dr_max = 0.0; }
@@ -91,45 +59,79 @@ void Convolution::convolute(){
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
+bool Convolution::create_normal_database(CorrInput& pair){
+    if(pair.reverse){
+        sample_const_dist(pair.frame_new,CONV_REF);
+        sample_const_dist(pair.frame_old,CONV_SPL);
+    }
+    else{
+        sample_const_dist(pair.frame_new,CONV_SPL);
+        sample_const_dist(pair.frame_old,CONV_REF);
+    }
+    return true;
+}
+
+///------------------------------------------------------------------------------------------------------------------------------------------------///
+
+void Convolution::fade_out_snapped_p(){
+    for(int i=0; i < conv_accepted.size(); i++){
+        for(int j = conv_accepted[i]->it_min_ref; j < conv_accepted[i]->it_max_ref; j++){
+            conv_data[CONV_REF]->p_cd->at(j                            ).fade_out+= 1.0 / (double)conv_accepted.size();
+            conv_data[CONV_SPL]->p_cd->at(j+conv_accepted[i]->shift_spl).fade_out+= 1.0 / (double)conv_accepted.size();
+        }
+    }
+}
+
+///------------------------------------------------------------------------------------------------------------------------------------------------///
+
 void Convolution::create_convol_com(int init_shift,int final_shift,int step){///TODO: make it less messy
     xy com_ref(0,0);
     xy com_spl(0,0);
-    conv_distr.push_back(boost::shared_ptr<ConvolInfo>(new ConvolInfo(init_shift,conv_data[CONV_REF]->seg,conv_data[CONV_SPL]->seg)));
-    set_convol_it_bounds(conv_distr.back());
-    for(int i = conv_distr.back()->it_min_ref; i < conv_distr.back()->it_max_ref; i += step){
-        com_ref += to_xy(conv_data[CONV_REF]->p_cd->at(i));
-        com_spl += to_xy(conv_data[CONV_SPL]->p_cd->at(i + conv_distr.back()->shift_spl));
-    }
-    double it_size = conv_distr.back()->it_max_ref - conv_distr.back()->it_min_ref;
-    conv_distr.back()->com_ref = xy(com_ref.x/it_size/(double)step,com_ref.y/it_size/(double)step);
-    conv_distr.back()->com_spl = xy(com_spl.x/it_size/(double)step,com_spl.y/it_size/(double)step);
-    conv_distr.back()->com_dr  = diff(conv_distr.back()->com_ref, conv_distr.back()->com_spl);
-
-    if(( conv_distr.back()->com_dr > com_dr_max )&&(full_search)){
-        com_dr_max = conv_distr.back()->com_dr;
-    }
-    for(int shift = init_shift + step; shift < final_shift; shift += step){
+    for(int shift = init_shift ; shift < final_shift; shift += step){
         conv_distr.push_back(boost::shared_ptr<ConvolInfo>(new ConvolInfo(shift,conv_data[CONV_REF]->seg,conv_data[CONV_SPL]->seg)));
         set_convol_it_bounds(conv_distr.back());
-        for(int i = conv_distr.back()->it_max_ref; i < conv_distr[conv_distr.size() - 2]->it_max_ref; i += step){
-            com_ref -= to_xy(conv_data[CONV_REF]->p_cd->at(i));
+        if(conv_distr.size() == 1){//if first position compute the first COM
+            for(int i = conv_distr.back()->it_min_ref; i < conv_distr.back()->it_max_ref; i += step){
+                com_ref += to_xy(conv_data[CONV_REF]->p_cd->at(i));
+                com_spl += to_xy(conv_data[CONV_SPL]->p_cd->at(i + conv_distr.back()->shift_spl));
+            }
         }
-        for(int i = conv_distr.back()->it_min_ref; i < conv_distr[conv_distr.size() - 2]->it_min_ref; i += step){
-            com_ref += to_xy(conv_data[CONV_REF]->p_cd->at(i));
+        else{                  //else efficiently substract/add shifted points in com
+            for(int i = conv_distr.back()->it_max_ref; i < conv_distr[conv_distr.size() - 2]->it_max_ref; i += step){
+                com_ref -= to_xy(conv_data[CONV_REF]->p_cd->at(i));
+            }
+            for(int i = conv_distr.back()->it_min_ref; i < conv_distr[conv_distr.size() - 2]->it_min_ref; i += step){
+                com_ref += to_xy(conv_data[CONV_REF]->p_cd->at(i));
+            }
+            for(int i = conv_distr[conv_distr.size() - 2]->it_max_ref + conv_distr[conv_distr.size() - 2]->shift_spl; i < conv_distr.back()->it_max_ref + conv_distr.back()->shift_spl; i += step){
+                com_spl += to_xy(conv_data[CONV_SPL]->p_cd->at(i));
+            }
+            for(int i = conv_distr[conv_distr.size() - 2]->it_min_ref + conv_distr[conv_distr.size() - 2]->shift_spl; i < conv_distr.back()->it_min_ref + conv_distr.back()->shift_spl; i += step){
+                com_spl -= to_xy(conv_data[CONV_SPL]->p_cd->at(i));
+            }
         }
-        for(int i = conv_distr[conv_distr.size() - 2]->it_max_ref + conv_distr[conv_distr.size() - 2]->shift_spl; i < conv_distr.back()->it_max_ref + conv_distr.back()->shift_spl; i += step){
-            com_spl += to_xy(conv_data[CONV_SPL]->p_cd->at(i));
-        }
-        for(int i = conv_distr[conv_distr.size() - 2]->it_min_ref + conv_distr[conv_distr.size() - 2]->shift_spl; i < conv_distr.back()->it_min_ref + conv_distr.back()->shift_spl; i += step){
-            com_spl -= to_xy(conv_data[CONV_SPL]->p_cd->at(i));
-        }
-        it_size = conv_distr.back()->it_max_ref - conv_distr.back()->it_min_ref;
-        conv_distr.back()->com_ref = xy(com_ref.x/it_size/(double)step,com_ref.y/it_size/(double)step);
-        conv_distr.back()->com_spl = xy(com_spl.x/it_size/(double)step,com_spl.y/it_size/(double)step);
-        conv_distr.back()->com_dr  = diff(conv_distr.back()->com_ref, conv_distr.back()->com_spl);
+        double it_size = conv_distr.back()->it_max_ref - conv_distr.back()->it_min_ref;                         // number of points in convolution
+        conv_distr.back()->com_ref = xy(com_ref.x / it_size / (double)step, com_ref.y / it_size / (double)step);// com of ref convoluted points
+        conv_distr.back()->com_spl = xy(com_spl.x / it_size / (double)step, com_spl.y / it_size / (double)step);// com of ref convoluted points
+        conv_distr.back()->com_dr  = diff(conv_distr.back()->com_ref, conv_distr.back()->com_spl);              // distance between com_ref and com_spl
 
         if(( conv_distr.back()->com_dr > com_dr_max )&&(full_search)){
             com_dr_max = conv_distr.back()->com_dr;
+        }
+    }
+    //checking if this convolution satisfies that len_conv(t-1) > perc * total_len(t-1)
+    for(std::vector<boost::shared_ptr<ConvolInfo> >::iterator conv_dist_it = conv_distr.begin(); conv_dist_it != conv_distr.end(); conv_dist_it++){
+        double it_size = (*conv_dist_it)->it_max_ref - (*conv_dist_it)->it_min_ref;
+        double total_len;
+        if((*conv_dist_it)->seg_ref->getObj()){//extracting the total len from the (t-1) segment
+            total_len = (*conv_dist_it)->seg_ref->getLen();
+        }
+        else{
+            total_len = (*conv_dist_it)->seg_spl->getLen();
+        }
+        if((it_size - 1) * sample_dist / total_len < min_len_perc){//if convolution distance is too small, erase the position
+            conv_dist_it = conv_distr.erase(conv_dist_it);
+            conv_dist_it--;
         }
     }
 }
@@ -262,17 +264,20 @@ void Convolution::compute_tf_ANG_VAR(boost::shared_ptr<ConvolInfo> input){
 
 double Convolution::snap_score(boost::shared_ptr<ConvolInfo> input, bool _SVD){//used by SVD-snapp mode ; 1 = perfect match, 0.0 = no match
     double err_score, occl_score, com_d_score, rot_score;
-    if(_SVD){ err_score = (1.0 - input->sqr_err / sqr_err_thres);            }                     //best case = 1.0 , worst case < 0.0
+    if(_SVD){ err_score = (1.0 - input->sqr_err / sqr_err_thres);            }                         //best case = 1.0 , worst case < 0.0
     else    { err_score = (1.0 - input->ang_distr.getVariance() / ang_var_thres);}
-    occl_score  = (1.0 - input->pair_no / (double)conv_data[CONV_REF]->p_cd->size()) / p_no_perc_thres; //best case = 0.0 , worst case > 1.0
-    com_d_score = input->com_dr / com_dr_max;                                                      //best case = 0.0 , worst case > 1.0
-    rot_score   = fabs(input->ang_distr.getMean() / ang_mean_thres);                                  //best case = 0.0 , worst case > 1.0
+    occl_score  = (1.0 - input->pair_no / (double)conv_data[CONV_REF]->p_cd->size()) / p_no_perc_thres;//best case = 0.0 , worst case > 1.0
+    com_d_score = input->com_dr / com_dr_max;                                                          //best case = 0.0 , worst case > 1.0
+    rot_score   = fabs(input->ang_distr.getMean() / ang_mean_thres);                                   //best case = 0.0 , worst case > 1.0
 
     if(( err_score < 0.0)||(occl_score > 1.0)||(com_d_score > 1.0)||(rot_score > 1.0)){
         return 0.0;
     }
-    //return fmax(0.0, err_score - (1.0 / 3.0) * (occl_score + com_d_score + rot_score));
-    return fmax(-1, err_score - /*sqr*/(1.0-err_score)*((1.0 - occl_score) * sqr(1.0 - com_d_score) * sqr(1.0 -  rot_score)));
+    double score = err_score - fmin(err_score, (1 - err_score) *
+                                                                 ( (1 - occl_score ) *
+                                                                   (1 - com_d_score) * (1 - com_d_score) *
+                                                                   (1 - rot_score  ) * (1 - rot_score  )));
+    return score;
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -285,7 +290,7 @@ double Convolution::fade_out_func(const PointDataSample& p_ref, const PointDataS
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 double Convolution::weight_func(const PointDataSample& p_ref, const PointDataSample& p_spl){
-    return (1.0 / ((double) *p_ref.no * ang_key_db.no_keys) ) * fade_out_func(p_ref, p_spl);// !!!!!!!!!!!!!!!!!!!!!!!!!!
+    return (1.0 / ((double) *p_ref.no * ang_key_db.no_keys) ) * fade_out_func(p_ref, p_spl);
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -320,19 +325,22 @@ void Convolution::find_accepted_tf_zones(){
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
+
 void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){
-    Gauss g_x    , g_y    , g_angle,
-          g_x_inv, g_y_inv, g_angle_inv;
+    Gauss g_x    , g_y    ,
+          g_x_inv, g_y_inv;
     Gauss gt_x    , gt_y    , gt_angcos    , gt_angsin,
           gt_x_inv, gt_y_inv, gt_angcos_inv, gt_angsin_inv;
+    Gauss g_com_x, g_com_y, g_com_x_inv, g_com_y_inv;
     cv::Matx33d T;
     cv::Matx33d Ti;
-    xy com     = conv_data[CONV_REF]->com;
-    xy com_inv = conv_data[CONV_SPL]->com;
     double weight_sum = 0;
-    double score = 0;
+    double score      = 0;
 
     for(int i = c_acc_it_min; i < c_acc_it_max; i++){
+        xy com     = conv_accepted[i]->com_ref;
+        xy com_inv = conv_accepted[i]->com_spl;
+
         T  = conv_accepted[i]->T;
         xy tf_com     = mat_mult(T , com    );
 
@@ -341,14 +349,13 @@ void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){
 
         double weight  = conv_accepted[i]->score;
 
-        double cos_angle;
+        g_com_x      .add_w_sample(com.x    , weight);
+        g_com_y      .add_w_sample(com.y    , weight);
+        g_com_x_inv  .add_w_sample(com_inv.x, weight);
+        g_com_y_inv  .add_w_sample(com_inv.y, weight);
 
         g_x          .add_w_sample((tf_com     - com).x, weight);
         g_y          .add_w_sample((tf_com     - com).y, weight);
-        cos_angle = T(0,0);
-        if     (cos_angle >   1.0){ cos_angle =   1.0;}
-        else if(cos_angle < - 1.0){ cos_angle = - 1.0;}
-        g_angle      .add_w_sample(acos(cos_angle)       , weight);
         gt_x         .add_w_sample(T(2) ,weight);
         gt_y         .add_w_sample(T(5) ,weight);
         gt_angcos    .add_w_sample(T(0) ,weight);
@@ -356,10 +363,6 @@ void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){
 
         g_x_inv      .add_w_sample((tf_com_inv - com_inv).x, weight);
         g_y_inv      .add_w_sample((tf_com_inv - com_inv).y, weight);
-        cos_angle = Ti(0,0);
-        if     (cos_angle >   1.0){ cos_angle =   1.0;}
-        else if(cos_angle < - 1.0){ cos_angle = - 1.0;}
-        g_angle_inv  .add_w_sample(acos(cos_angle)           , weight);
         gt_x_inv     .add_w_sample(Ti(2),weight);
         gt_y_inv     .add_w_sample(Ti(5),weight);
         gt_angcos_inv.add_w_sample(Ti(0),weight);
@@ -369,6 +372,10 @@ void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){
         score      += sqr(weight);
     }
     score /= weight_sum;
+
+    xy com     = xy(g_com_x    .getMean(), g_com_y    .getMean());
+    xy com_inv = xy(g_com_x_inv.getMean(), g_com_y_inv.getMean());
+
 
     double cov_xy = 0, cov_xy_inv = 0;
     for(int i = c_acc_it_min; i < c_acc_it_max; i++){//TODO covariance computation is not perfect
@@ -394,108 +401,25 @@ void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){
     Ti = cv::Matx33d(gt_angcos_inv.getMean(), -gt_angsin_inv.getMean(), gt_x_inv.getMean(),
                      gt_angsin_inv.getMean(),  gt_angcos_inv.getMean(), gt_y_inv.getMean(),
                                            0,                        0,                 1);
-    cv::Matx22d C (g_x.getVariance()    , cov_xy              ,
-                   cov_xy               , g_y.getVariance()    );
-    cv::Matx22d Ci(g_x_inv.getVariance(), cov_xy_inv          ,
-                   cov_xy_inv           , g_y_inv.getVariance());
 
+    double var_rot  = - 2 * log( sqrt(sqr(gt_angcos    .getMean()) + sqr(gt_angsin    .getMean())) );
 
-    //HERE ADD TF_COM !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    cv::Matx33d Q   (g_x.getVariance(),cov_xy             , 0      ,
+                     cov_xy            , g_y.getVariance(), 0      ,
+                     0                 , 0                 , var_rot);
 
-    TfVar tf_var    (com    , T , xy(g_x    .getMean(), g_y    .getMean()), C , atan2(gt_angsin    .getMean(), gt_angcos    .getMean()), g_angle    .getVariance());
-    TfVar tf_var_inv(com_inv, Ti, xy(g_x_inv.getMean(), g_y_inv.getMean()), Ci, atan2(gt_angsin_inv.getMean(), gt_angcos_inv.getMean()), g_angle_inv.getVariance());
+           var_rot  = - 2 * log( sqrt(sqr(gt_angcos_inv.getMean()) + sqr(gt_angsin_inv.getMean())) );
+
+    cv::Matx33d Qi   (g_x_inv.getVariance(), cov_xy                , 0      ,
+                      cov_xy                , g_y_inv.getVariance(), 0      ,
+                      0                     , 0                     , var_rot);
+
+    TfVar tf_var    (com    , xy(g_x    .getMean(), g_y    .getMean()), T , Q );
+    TfVar tf_var_inv(com_inv, xy(g_x_inv.getMean(), g_y_inv.getMean()), Ti, Qi);
 
     conv_data[CONV_REF]->tf->push_back(TFdata(conv_accepted[0]->seg_spl, CONV_REF, score, tf_var    , tf_var_inv));
     conv_data[CONV_SPL]->tf->push_back(TFdata(conv_accepted[0]->seg_ref, CONV_SPL, score, tf_var_inv, tf_var    ));
 }
-//void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){//maybe try with mean of the tf
-//    Gauss g_x    , g_y    , g_angle,
-//          g_x_inv, g_y_inv, g_angle_inv;
-//    Gauss gt_x    , gt_y    , gt_angcos    , gt_angsin,
-//          gt_x_inv, gt_y_inv, gt_angcos_inv, gt_angsin_inv;
-//    cv::Matx33d T;
-//    cv::Matx33d Ti;
-//    xy com     = conv_data[CONV_REF]->com;
-//    xy com_inv = conv_data[CONV_SPL]->com;
-//    double weight_sum = 0;
-//    double score = 0;
-
-//    for(int i = c_acc_it_min; i < c_acc_it_max; i++){
-//        T  = conv_accepted[i]->T;
-//        xy tf_com     = mat_mult(T , com    );
-
-//        Ti = T.inv();
-//        xy tf_com_inv = mat_mult(Ti, com_inv);
-
-//        double weight  = conv_accepted[i]->score;
-
-//        double cos_angle;
-
-//        g_x          .add_w_sample((tf_com     - com).x, weight);
-//        g_y          .add_w_sample((tf_com     - com).y, weight);
-//        cos_angle = T(0,0);
-//        if     (cos_angle >   1.0){ cos_angle =   1.0;}
-//        else if(cos_angle < - 1.0){ cos_angle = - 1.0;}
-//        g_angle      .add_w_sample(acos(cos_angle)       , weight);
-//        gt_x         .add_w_sample(T(2) ,weight);
-//        gt_y         .add_w_sample(T(5) ,weight);
-//        gt_angcos    .add_w_sample(T(0) ,weight);
-//        gt_angsin    .add_w_sample(T(3) ,weight);
-
-//        g_x_inv      .add_w_sample((tf_com_inv - com_inv).x, weight);
-//        g_y_inv      .add_w_sample((tf_com_inv - com_inv).y, weight);
-//        cos_angle = Ti(0,0);
-//        if     (cos_angle >   1.0){ cos_angle =   1.0;}
-//        else if(cos_angle < - 1.0){ cos_angle = - 1.0;}
-//        g_angle_inv  .add_w_sample(acos(cos_angle)           , weight);
-//        gt_x_inv     .add_w_sample(Ti(2),weight);
-//        gt_y_inv     .add_w_sample(Ti(5),weight);
-//        gt_angcos_inv.add_w_sample(Ti(0),weight);
-//        gt_angsin_inv.add_w_sample(Ti(3),weight);
-
-//        weight_sum += weight;
-//        score      += sqr(weight);
-//    }
-//    score /= weight_sum;
-
-//    double cov_xy = 0, cov_xy_inv = 0;
-//    for(int i = c_acc_it_min; i < c_acc_it_max; i++){//TODO covariance computation is not perfect
-//        T  = conv_accepted[i]->T;
-//        xy tf_com     = mat_mult(T , com    );
-
-//        Ti = T.inv();
-//        xy tf_com_inv = mat_mult(Ti, com_inv);
-
-//        double weight  = conv_accepted[i]->score;
-
-//        double a     = ( (tf_com     - com    ).x - g_x.getMean()     ) ;
-//        double b     = ( (tf_com     - com    ).y - g_y.getMean()     ) ;
-//        cov_xy       += a     * b     * weight / weight_sum;
-
-//        double a_inv = ( (tf_com_inv - com_inv).x - g_x_inv.getMean() ) ;
-//        double b_inv = ( (tf_com_inv - com_inv).y - g_y_inv.getMean() ) ;
-//        cov_xy_inv   += a_inv * b_inv * weight / weight_sum;
-//    }
-//    T  = cv::Matx33d(gt_angcos    .getMean(), -gt_angsin    .getMean(), gt_x    .getMean(),
-//                     gt_angsin    .getMean(),  gt_angcos    .getMean(), gt_y    .getMean(),
-//                                           0,                        0,                 1);
-//    Ti = cv::Matx33d(gt_angcos_inv.getMean(), -gt_angsin_inv.getMean(), gt_x_inv.getMean(),
-//                     gt_angsin_inv.getMean(),  gt_angcos_inv.getMean(), gt_y_inv.getMean(),
-//                                           0,                        0,                 1);
-//    cv::Matx22d C (g_x.getVariance()    , cov_xy              ,
-//                   cov_xy               , g_y.getVariance()    );
-//    cv::Matx22d Ci(g_x_inv.getVariance(), cov_xy_inv          ,
-//                   cov_xy_inv           , g_y_inv.getVariance());
-
-
-//    //HERE ADD TF_COM !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-//    TfVar tf_var    (com    , T , xy(g_x    .getMean(), g_y    .getMean()), C , atan2(gt_angsin    .getMean(), gt_angcos    .getMean()), g_angle    .getVariance());
-//    TfVar tf_var_inv(com_inv, Ti, xy(g_x_inv.getMean(), g_y_inv.getMean()), Ci, atan2(gt_angsin_inv.getMean(), gt_angcos_inv.getMean()), g_angle_inv.getVariance());
-
-//    conv_data[CONV_REF]->tf->push_back(TFdata(conv_accepted[0]->seg_spl, CONV_REF, score, tf_var    , tf_var_inv));
-//    conv_data[CONV_SPL]->tf->push_back(TFdata(conv_accepted[0]->seg_ref, CONV_SPL, score, tf_var_inv, tf_var    ));
-//}
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
@@ -579,7 +503,6 @@ void Convolution::smooth_normals(ConvolStatus conv_stat){//smooths normals, eras
     conv_data[conv_stat] = temp;
 }
 
-///------------------------------------------------------------------------------------------------------------------------------------------------///
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 void AngKeyDataBase::init(){

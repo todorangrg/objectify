@@ -63,6 +63,7 @@ public:
     bool erase  ();
     //void erase  (boost::shared_ptr<std::Vector<SegmentData> > &output,std::Vector<SegmentData>::iterator _seg);
 
+    //Constructors & Destructors
     IteratorIndexSet(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &_input, IISmode mode=FWD);
     IteratorIndexSet(){}
     ~IteratorIndexSet(){}
@@ -91,6 +92,7 @@ public:
     bool advance_divergent(IteratorIndexSet<SegData> &iis_out, double* ang_bounds=NULL);
     bool advance_in_ang_bounds(double* ang_bounds);
 
+    //Constructors & Destructors
     IteratorIndexSet2(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &_input, IISmode mode=FWD);
     IteratorIndexSet2(){}
     ~IteratorIndexSet2(){}

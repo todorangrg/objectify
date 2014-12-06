@@ -29,18 +29,22 @@ Segmentation::Segmentation(RecfgParam &_param, SensorTf& _tf_sns, PlotData& _plo
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 void Segmentation::plot_data(InputData &input, KalmanSLDM k){
-    if(!input.is_valid){
-        return;
-    }
     if(plot_data_segm_init){
-        plot.plot_segm(k.seg_init    , plot.blue_dark);
-        plot.plot_segm(input.seg_init, plot.red_dark );
+        if(k.seg_init){
+            plot.plot_segm(k.seg_init    , plot.blue_dark);
+        }
+        if(input.seg_init){
+            plot.plot_segm(input.seg_init, plot.red_dark );
+        }
     }
     if(plot_data_segm_ext){
-        plot.plot_segm(k.seg_ext    , plot.blue);
-        plot.plot_segm(input.seg_ext, plot.red);
+        if(k.seg_ext){
+            plot.plot_segm(k.seg_ext    , plot.blue);
+        }
+        if(input.seg_ext){
+            plot.plot_segm(input.seg_ext, plot.red);
+        }
     }
-
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -53,7 +57,7 @@ void Segmentation::run(InputData &input, KalmanSLDM &k, bool advance){
         }
         return;
     }
-    tf_frm.init(k.rob_x_old(), k.rob_x());
+    tf_frm.init(k.rob_x_old(), k.rob_x_now());
 
     assign_seg_init(input.sensor_filtered,input.seg_init);
     split_com_len  (input.seg_init);
@@ -178,6 +182,9 @@ void Segmentation::calc_occlusion(SegmentDataExtPtrVectorPtr &input, OcclType oc
             if(!iis.advance(ALL_SEGM, INC)){
                 break;
             }
+            if(iis.status() == IIS_SEG_END){
+                break;
+            }
         }
         iis.push_bk(temp,*iis.p());
         while(iis.advance(ALL_SEGM, INC)){
@@ -226,6 +233,7 @@ void Segmentation::split_for_occl(SegmentDataExtPtrVectorPtr &input){
     int id=0;
     for(SegmentDataExtPtrVectorIter seg_inp_n = input->begin(); seg_inp_n != input->end(); seg_inp_n++){
         bool split_segment=false;
+        int diff_pn = 1;
         for(SegmentDataExtPtrVectorIter seg_inp_p = seg_inp_n + 1; seg_inp_p != input->end(); seg_inp_p++){
             if((*seg_inp_n)->p.back().angle > (*seg_inp_p)->p.back().angle){
                 //split seg_inp_n and put it after seg_inp_p and break and continue
@@ -242,15 +250,22 @@ void Segmentation::split_for_occl(SegmentDataExtPtrVectorPtr &input){
                 }
                 //appending in input the remaining of the segment after seg_inp_p segment
                 if(p != (*seg_inp_n)->p.end()){
-                    SegmentDataExtPtrVectorIter inp_append = input->insert(seg_inp_p + 1, SegmentDataExtPtr(new SegmentDataExt(seg_inp_n)));
+                    PointDataVector points_to_append;
                     while(p != (*seg_inp_n)->p.end()){
-                        (*inp_append)->p.push_back(PointData(*p));
+                        points_to_append.push_back(PointData(*p));
                         p++;
                     }
+                    SegmentDataExtPtrVectorIter inp_append = input->insert(seg_inp_p + 1, SegmentDataExtPtr(new SegmentDataExt(seg_inp_n)));
+                    (*inp_append)->p = points_to_append;
+                    seg_inp_p = --inp_append;
+                    int diff_pnc = diff_pn;
+                    while(diff_pnc > 0){ --inp_append; diff_pnc--; }
+                    seg_inp_n = inp_append;
                 }
                 split_segment=true;
                 break;
             }
+            diff_pn++;
         }
         if(!split_segment){
             PointDataVectorIter p = (*seg_inp_n)->p.begin();

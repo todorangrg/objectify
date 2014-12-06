@@ -129,6 +129,7 @@ void DataProcessingNode::callbackParameters (objectify::objectify_paramConfig &c
     param.convol_SVD = config.convol_SVD;
 
     param.convol_sample_dist = config.convol_sample_dist;
+    param.convol_min_len_perc= config.convol_min_len_perc;
     param.convol_marg_extr_excl = config.convol_marg_extr_excl / 100.0;
     param.convol_normals_smooth_mask_size = config.convol_normals_smooth_mask_size;
     param.convol_normals_smooth_mask_dist = config.convol_normals_smooth_mask_dist;
@@ -140,14 +141,24 @@ void DataProcessingNode::callbackParameters (objectify::objectify_paramConfig &c
     param.convol_ang_var_thres = config.convol_ang_var_thres;
     param.convol_sqr_err_thres  = config.convol_sqr_err_thres;
     param.convol_p_no_perc_thres  = config.convol_p_no_perc_thres / 100.0;
-//    param.convol_score_thres = config.convol_score_thres;
+
+    sim_rob_alfa_1 = config.sim_rob_alfa_1;
+    sim_rob_alfa_2 = config.sim_rob_alfa_2;
+    sim_rob_alfa_3 = config.sim_rob_alfa_3;
+    sim_rob_alfa_4 = config.sim_rob_alfa_4;
+    param.kalman_rob_alfa_1 = config.kalman_rob_alfa_1;
+    param.kalman_rob_alfa_2 = config.kalman_rob_alfa_2;
+    param.kalman_rob_alfa_3 = config.kalman_rob_alfa_3;
+    param.kalman_rob_alfa_4 = config.kalman_rob_alfa_4;
+    param.kalman_obj_alfa_xy = config.kalman_obj_alfa_xy;
+    param.kalman_obj_alfa_phi = config.kalman_obj_alfa_phi;
+    param.kalman_obj_timeout = config.kalman_obj_timeout;
 
     if( frame2frame = config.pause_sim ){
         if( frame2frame_switch_old != config.step_sim ){
             frame2frame_callback = true;
         }
     }
-//    frame2frame_deltaT     = config.frame2frame_deltaT;
     frame2frame_switch_old = config.step_sim;
 }
 
@@ -170,15 +181,12 @@ void DataProcessingNode::callback_odom_laser(const nav_msgs::OdometryConstPtr &_
         }
     }
     KInp vel(_odom->twist.twist.linear.x,_odom->twist.twist.angular.z);
-    double alpha_motion_[4];
-    alpha_motion_[0] = 0.1;//;
-    alpha_motion_[1] = 0.05;//;
-    alpha_motion_[2] = 0.05;//;
-    alpha_motion_[3] = 0.1;//;
 
     Distributions noise;
-    vel.v += noise.normalDist(0, alpha_motion_[0] * sqr(vel.v) + alpha_motion_[1] * sqr(vel.w));
-    vel.w += noise.normalDist(0, alpha_motion_[2] * sqr(vel.v) + alpha_motion_[3] * sqr(vel.w));//noising the input
+    if(fabs(vel.v) < 0.01){ vel.v = 0.; }
+    if(fabs(vel.w) < 0.01){ vel.w = 0.; }
+    vel.v += noise.normalDist(0, sim_rob_alfa_1 * sqr(vel.v) + sim_rob_alfa_2 * sqr(vel.w));
+    vel.w += noise.normalDist(0, sim_rob_alfa_3 * sqr(vel.v) + sim_rob_alfa_4 * sqr(vel.w));//noising the input
     callback_odom_laser_data = InputData(laser_raw_now, stateOdom, vel, _odom->header.stamp.now());
     param.cb_sensor_point_angl_inc=_laser->angle_increment;
     param.cb_sensor_point_angl_max=_laser->angle_max;

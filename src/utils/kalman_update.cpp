@@ -5,17 +5,16 @@
 using namespace cv;
 using namespace std;
 
-
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void KalmanSLDM::init_Oi(ObjectDataPtr obj, xy obj_com_bar_f1){
+void KalmanSLDM::init_Oi(ObjectDataPtr obj, xy obj_com_bar_f1, double dt){
     RState rob_bar_f0(S);
     if(Oi.count(obj) == 0){ return; }
     int i_min = Oi[obj].i_min;
 
     S.row(i_min + 0) = rob_bar_f0.xx + obj_com_bar_f1.x * cos(rob_bar_f0.xphi) - obj_com_bar_f1.y * sin(rob_bar_f0.xphi);
     S.row(i_min + 1) = rob_bar_f0.xy + obj_com_bar_f1.y * cos(rob_bar_f0.xphi) + obj_com_bar_f1.x * sin(rob_bar_f0.xphi);
-    S.row(i_min + 2) = rob_bar_f0.xphi ;
+    S.row(i_min + 2) = (S.row(i_min + 5) * dt + S.row(i_min + 8) * sqr(dt) / 2.0);//rob_bar_f0.xphi ;
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -29,9 +28,9 @@ void KalmanSLDM::update_Oi(ObjectDataPtr seg, KObjZ kObjZ){
 
     ///PREDICTED OBSERVATION----
     Mat h_bar_f1(z_param, 1, CV_64F, 0.0);
-    h_bar_f1.row(0) = (obj_bar_f0.xx - rob_bar_f0.xx) * cos(rob_bar_f0.xphi) + (obj_bar_f0.xy - rob_bar_f0.xy) * sin(rob_bar_f0.xphi);
-    h_bar_f1.row(1) = (obj_bar_f0.xy - rob_bar_f0.xy) * cos(rob_bar_f0.xphi) - (obj_bar_f0.xx - rob_bar_f0.xx) * sin(rob_bar_f0.xphi);
-    h_bar_f1.row(2) =  obj_bar_f0.xphi - rob_bar_f0.xphi;
+    h_bar_f1.row(0) = (obj_bar_f0.xx   - rob_bar_f0.xx) * cos(rob_bar_f0.xphi) + (obj_bar_f0.xy - rob_bar_f0.xy) * sin(rob_bar_f0.xphi);
+    h_bar_f1.row(1) = (obj_bar_f0.xy   - rob_bar_f0.xy) * cos(rob_bar_f0.xphi) - (obj_bar_f0.xx - rob_bar_f0.xx) * sin(rob_bar_f0.xphi);
+    h_bar_f1.row(2) =  obj_bar_f0.xphi ;//- rob_bar_f0.xphi;
     ///----PREDICTED OBSERVATION
 
     ///PREDICTED OBSERVATION JACOBIAN AND NOISE----
@@ -53,13 +52,16 @@ void KalmanSLDM::update_Oi(ObjectDataPtr seg, KObjZ kObjZ){
     Mat Q(kObjZ.Q);
     ///----PREDICTED OBSERVATION JACOBIAN AND NOISE
 
+    Mat h_hat_f1(z_param, 1, CV_64F, 0.0); h_hat_f1.row(0) = kObjZ.pos.x; h_hat_f1.row(1) = kObjZ.pos.y; h_hat_f1.row(2) = kObjZ.phi; ///OBSERVATION
 
-    Mat h_hat_f1(z_param, 1, CV_64F, 0.0);
-    h_hat_f1.row(0) = kObjZ.pos.x; h_hat_f1.row(1) = kObjZ.pos.y; h_hat_f1.row(2) = kObjZ.phi; ///OBSERVATION
+    Mat h_diff = h_hat_f1 - h_bar_f1;
+    double obj_angle = h_diff.at<double>(2);
+    h_diff.row(2) = normalizeAngle(obj_angle);
 
+    //cout<<"S="<<endl<<" "<<S<<endl<<endl;
 
     Mat Kt = P * Ht.t() * ( Ht * P * Ht.t() + Q ).inv();                ///KALMAN GAIN
-    Mat(S + Kt * ( h_hat_f1 - h_bar_f1 )).copyTo(S);                    ///STATE UPDATE
+    Mat(S + Kt * ( h_diff )).copyTo(S);                    ///STATE UPDATE
     Mat((cv::Mat::eye(P.rows, P.cols, CV_64F) - Kt * Ht) * P).copyTo(P);///COVARIANCE UPDATE
 
     //cout<<"h_hat_f1=" <<endl<<" "<<h_hat_f1                        <<endl<<endl;
