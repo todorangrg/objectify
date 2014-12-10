@@ -54,8 +54,18 @@ bool KalmanSLDM::add_obj(ObjectDataPtr seg, KObjZ kObjZ){
     obj_zhat_f1.xx = kObjZ.pos.x; obj_zhat_f1.xy = kObjZ.pos.y; obj_zhat_f1.xphi = kObjZ.phi;
 
     //adding the object state parameters
-    S.push_back(rob_bar_f0.xx   + obj_zhat_f1.xx * cos(rob_bar_f0.xphi) - obj_zhat_f1.xy * sin(rob_bar_f0.xphi));
-    S.push_back(rob_bar_f0.xy   + obj_zhat_f1.xy * cos(rob_bar_f0.xphi) + obj_zhat_f1.xx * sin(rob_bar_f0.xphi));
+
+    S.push_back(cos(rob_bar_f0.xphi) * obj_zhat_f1.xx -
+                sin(rob_bar_f0.xphi) * obj_zhat_f1.xy +
+                cos(tf_sns.getPhi()) * (rob_bar_f0.xx - tf_sns.getXY().x + tf_sns.getXY().x * cos(rob_bar_f0.xphi) - tf_sns.getXY().y * sin(rob_bar_f0.xphi)) +
+                sin(tf_sns.getPhi()) * (rob_bar_f0.xy - tf_sns.getXY().y + tf_sns.getXY().y * cos(rob_bar_f0.xphi) + tf_sns.getXY().x * sin(rob_bar_f0.xphi)));
+    S.push_back(cos(rob_bar_f0.xphi) * obj_zhat_f1.xy +
+                sin(rob_bar_f0.xphi) * obj_zhat_f1.xx +
+                cos(tf_sns.getPhi()) * (   rob_bar_f0.xy - tf_sns.getXY().y + tf_sns.getXY().y * cos(rob_bar_f0.xphi) + tf_sns.getXY().x * sin(rob_bar_f0.xphi)) +
+                sin(tf_sns.getPhi()) * ( - rob_bar_f0.xx + tf_sns.getXY().x - tf_sns.getXY().x * cos(rob_bar_f0.xphi) + tf_sns.getXY().y * sin(rob_bar_f0.xphi)));
+
+//    S.push_back(rob_bar_f0.xx   + obj_zhat_f1.xx * cos(rob_bar_f0.xphi) - obj_zhat_f1.xy * sin(rob_bar_f0.xphi));
+//    S.push_back(rob_bar_f0.xy   + obj_zhat_f1.xy * cos(rob_bar_f0.xphi) + obj_zhat_f1.xx * sin(rob_bar_f0.xphi));
     S.push_back(rob_bar_f0.xphi + obj_zhat_f1.xphi);
     S.push_back( 0.0 ); S.push_back( 0.0 ); S.push_back( 0.0 ); S.push_back( 0.0 ); S.push_back( 0.0 ); S.push_back( 0.0 );
 
@@ -72,10 +82,17 @@ bool KalmanSLDM::add_obj(ObjectDataPtr seg, KObjZ kObjZ){
 
     ///OBJECT COVARIANCE INITIALIZATION----
     Mat Gt_hinv_R (obj_param, rob_param, CV_64F, 0.);
-    Gt_hinv_R.row(0).col(0) = 1.; Gt_hinv_R.row(1).col(1) = 1.; Gt_hinv_R.row(2).col(2) = 1.;
 
-    Gt_hinv_R.row(0).col(2) = - obj_zhat_f1.xy * cos(rob_bar_f0.xphi) - obj_zhat_f1.xx * sin(rob_bar_f0.xphi);
-    Gt_hinv_R.row(1).col(2) =   obj_zhat_f1.xx * cos(rob_bar_f0.xphi) - obj_zhat_f1.xy * sin(rob_bar_f0.xphi);
+    Gt_hinv_R.row(0).col(0) =   cos(tf_sns.getPhi()); Gt_hinv_R.row(0).col(1) = sin(tf_sns.getPhi());
+    Gt_hinv_R.row(1).col(0) = - sin(tf_sns.getPhi()); Gt_hinv_R.row(1).col(1) = cos(tf_sns.getPhi());
+    Gt_hinv_R.row(2).col(2) = 1.;
+
+    Gt_hinv_R.row(0).col(2) = - obj_zhat_f1.xy * cos(rob_bar_f0.xphi) - obj_zhat_f1.xx * sin(rob_bar_f0.xphi) + //only this is wihtout sensor
+                                cos(tf_sns.getPhi()) * ( - tf_sns.getXY().y * cos(rob_bar_f0.xphi) - tf_sns.getXY().x * sin(rob_bar_f0.xphi)) +
+                                sin(tf_sns.getPhi()) * (   tf_sns.getXY().x * cos(rob_bar_f0.xphi) - tf_sns.getXY().y * sin(rob_bar_f0.xphi));
+    Gt_hinv_R.row(1).col(2) =   obj_zhat_f1.xx * cos(rob_bar_f0.xphi) - obj_zhat_f1.xy * sin(rob_bar_f0.xphi) + //only this is wihtout sensor
+                                cos(tf_sns.getPhi()) * (   tf_sns.getXY().x * cos(rob_bar_f0.xphi) - tf_sns.getXY().y * sin(rob_bar_f0.xphi)) +
+                                sin(tf_sns.getPhi()) * (   tf_sns.getXY().y * cos(rob_bar_f0.xphi) + tf_sns.getXY().x * sin(rob_bar_f0.xphi));;
 
 //    Mat Gt_hinv_Z (obj_param, z_param, CV_64F, 0.);
 //    Gt_hinv_Z.row(0).col(0) = cos(rob_bar_f0.xphi); Gt_hinv_Z.row(0).col(1) = - sin(rob_bar_f0.xphi);
@@ -84,16 +101,20 @@ bool KalmanSLDM::add_obj(ObjectDataPtr seg, KObjZ kObjZ){
 //    Mat(Gt_hinv_R * P_RR * Gt_hinv_R.t()  + Gt_hinv_Z * Mat(kObjZ.Q)  * Gt_hinv_Z.t()).copyTo(Oi[seg].P_OO);  ???
 
     Mat P_OO_V(9, 9, CV_64F, 0.);
-    double init_cov = 1;
-    P_OO_V.row(0).col(0) = init_cov;//initial covariance of x,v,a TODO....for x you should add the Q stuff
-    P_OO_V.row(1).col(1) = init_cov;
-    P_OO_V.row(2).col(2) = init_cov;
-    P_OO_V.row(3).col(3) = init_cov;
-    P_OO_V.row(4).col(4) = init_cov;
-    P_OO_V.row(5).col(5) = init_cov;
-    P_OO_V.row(6).col(6) = init_cov;
-    P_OO_V.row(7).col(7) = init_cov;
+    double init_cov = 3;
+    //initial covariance of x,v,a TODO....for x you should add the Q stuff
+//    P_OO_V.row(0).col(0) = init_cov; P_OO_V.row(0).col(1) = init_cov; P_OO_V.row(1).col(0) = init_cov;
+//    P_OO_V.row(1).col(1) = init_cov;
+//    P_OO_V.row(2).col(2) = init_cov;
+//    P_OO_V.row(3).col(3) = init_cov; P_OO_V.row(3).col(4) = init_cov; P_OO_V.row(4).col(3) = init_cov;
+//    P_OO_V.row(4).col(4) = init_cov;
+//    P_OO_V.row(5).col(5) = init_cov;
+//    P_OO_V.row(6).col(6) = init_cov; P_OO_V.row(6).col(7) = init_cov; P_OO_V.row(7).col(6) = init_cov;
+//    P_OO_V.row(7).col(7) = init_cov;
     //P_OO_V.row(8).col(8) = 1;
+
+    Q_Oi(obj_alfa_xy, obj_alfa_phi, init_cov).copyTo(P_OO_V);
+
     P_OO_V.copyTo(Oi[seg].P_OO);
 
     Mat(Gt_hinv_R * P.rowRange(0, rob_param).colRange(0, P.cols - obj_param)).copyTo(P_ORi);

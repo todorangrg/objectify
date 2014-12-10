@@ -62,7 +62,7 @@ protected:
     std::vector<boost::shared_ptr<ConvolInfo> >     conv_accepted;  //accepted convolution positions with info
 
     bool create_normal_database(CorrInput& pair);
-    void convolute();
+    bool convolute();
     void fade_out_snapped_p();
 private:
 
@@ -75,7 +75,7 @@ private:
     void normal_snapp        (boost::shared_ptr<ConvolInfo> input);
     void compute_tf_SVD      (boost::shared_ptr<ConvolInfo> input);
     void compute_tf_ANG_VAR  (boost::shared_ptr<ConvolInfo> input);
-    void find_accepted_tf_zones();
+    bool find_accepted_tf_zones();
     void add_accepted_tf       (int c_acc_it_min, int c_acc_it_max);
 
     double snap_score   (boost::shared_ptr<ConvolInfo> input, bool SVD);

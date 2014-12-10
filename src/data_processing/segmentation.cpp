@@ -5,11 +5,7 @@
 
 extern const char* ConvFlagNames[];
 
-
-//TODO NOW   : tf at the end in the corrected rob frame (better in kalman)
 //     LATER : comment, final cleanup, speed-up
-//
-
 
 Segmentation::Segmentation(RecfgParam &_param, SensorTf& _tf_sns, PlotData& _plot, KalmanSLDM &_k) :
     outl_circle_rad(_param.segm_outl_circle_rad),
@@ -178,15 +174,12 @@ void Segmentation::calc_occlusion(SegmentDataExtPtrVectorPtr &input, OcclType oc
     IteratorIndexSet<SegmentDataExt> iis(input);
     if(iis.status() >= IIS_VALID){
         polar angle_max( *iis.p() );
+        bool exit = false;
         while(!in_range(*iis.p())){
-            if(!iis.advance(ALL_SEGM, INC)){
-                break;
-            }
-            if(iis.status() == IIS_SEG_END){
-                break;
-            }
+            if(!iis.advance(ALL_SEGM, INC)){ exit = true; break; }
+            if(iis.status() == IIS_SEG_END){ exit = true; break; }
         }
-        iis.push_bk(temp,*iis.p());
+        if(!exit){ iis.push_bk(temp,*iis.p()); }
         while(iis.advance(ALL_SEGM, INC)){
             iis.advance(ALL_SEGM, DEC);//decrement
             if( angle_max.angle < iis.p()->angle ){
@@ -224,7 +217,7 @@ void Segmentation::calc_occlusion(SegmentDataExtPtrVectorPtr &input, OcclType oc
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
-//check more but now should work good
+//check more but now should work good HERE PROBLEM SPLITTING WHEN SHOULD NOT!!!!!
 void Segmentation::split_for_occl(SegmentDataExtPtrVectorPtr &input){
     input->reserve(2 * input->size());
     SegmentDataExtPtrVectorPtr temp( new SegmentDataExtPtrVector );
@@ -235,7 +228,7 @@ void Segmentation::split_for_occl(SegmentDataExtPtrVectorPtr &input){
         bool split_segment=false;
         int diff_pn = 1;
         for(SegmentDataExtPtrVectorIter seg_inp_p = seg_inp_n + 1; seg_inp_p != input->end(); seg_inp_p++){
-            if((*seg_inp_n)->p.back().angle > (*seg_inp_p)->p.back().angle){
+            if((*seg_inp_n)->p.back().angle > (*seg_inp_p)->p.back().angle + 0.05){//hardcoded
                 //split seg_inp_n and put it after seg_inp_p and break and continue
                 PointDataVectorIter p = (*seg_inp_n)->p.begin();
 
@@ -287,7 +280,7 @@ void Segmentation::sample_const_angle(SegmentDataExtPtrVectorPtr &input){
     SegmentDataExtPtrVectorPtr temp( new SegmentDataExtPtrVector );
     temp->reserve(2*input->size());//heuristic preallocation
 
-    std::vector<bool> quant_pos((angle_max - angle_min) / angle_inc,false);
+    std::vector<bool> quant_pos((2 * M_PI) / angle_inc,false);
 
     IteratorIndexSet<SegmentDataExt> iis0(input);
     IteratorIndexSet<SegmentDataExt> iis1(input);
@@ -297,13 +290,15 @@ void Segmentation::sample_const_angle(SegmentDataExtPtrVectorPtr &input){
     iis1.advance(ALL_SEGM, INC);
     if(iis1.status() >= IIS_VALID){
         do{
-            double d_angle = iis0.p()->angle-iis1.p()->angle;
-            normalizeAngle(d_angle);
+            double disc_angle0 = ( iis0.p()->angle + M_PI);
+            double disc_angle1 = ( iis1.p()->angle + M_PI );
+            double sample_pos_neg = round(disc_angle0 / angle_inc ) ;
+            double sample_pos_pos = round(disc_angle1 / angle_inc ) ;
+            disc_angle0 = iis0.p()->angle;
+            disc_angle1 = iis1.p()->angle;
+            normalizeAngle(disc_angle0);
 
-            double sample_pos_neg = round( ( iis0.p()->angle - angle_min ) / angle_inc ) ;
-            double sample_pos_pos = round( ( iis1.p()->angle - angle_min ) / angle_inc ) ;
-
-            polar sample( 0 , angle_min + ( angle_inc * sample_pos_neg ) );
+            polar sample( 0 , disc_angle0);
             if( iis0.seg() == iis1.seg() ){
                 if( diff( *iis0.p() , *iis1.p() ) < segm_discont_dist ){
 
@@ -325,16 +320,16 @@ void Segmentation::sample_const_angle(SegmentDataExtPtrVectorPtr &input){
                     int x=0;
                 }
             }
-            else if ( quant_pos[sample_pos_neg] == false ){
-                quant_pos[sample_pos_neg] = true;
-                sample.r = iis0.p()->r;
-                iis0.push_bk(temp, PointData( sample));
-            }
-            if ( ( iis1.p() == --input->back()->p.end() ) && ( quant_pos[sample_pos_pos] == false ) ){
-                quant_pos[sample_pos_pos] = true;
-                sample.r = iis1.p()->r;
-                iis0.push_bk(temp, PointData( polar(sample.r,sample.angle)));
-            }
+//            else if ( quant_pos[sample_pos_neg] == false ){
+//                quant_pos[sample_pos_neg] = true;
+//                sample.r = iis0.p()->r;
+//                iis0.push_bk(temp, PointData( sample));
+//            }
+//            if ( ( iis1.p() == --input->back()->p.end() ) && ( quant_pos[sample_pos_pos] == false ) ){
+//                quant_pos[sample_pos_pos] = true;
+//                sample.r = iis1.p()->r;
+//                iis0.push_bk(temp, PointData( polar(sample.r,sample.angle)));
+//            }
         }while(iis1.advance(ALL_SEGM, INC) && iis0.advance(ALL_SEGM, INC));
     }
     input = temp;
@@ -499,6 +494,12 @@ void Segmentation::split_com_len(boost::shared_ptr<std::vector<boost::shared_ptr
                 temp->back()->setCom(xy(com.x / p_nr, com.y / p_nr)); rest = 0; p_nr = 0; com = xy(0,0);
             }
         }while(iis2.advance(ALL_SEGM,INC));
+    }
+    if(temp->size() == 1){
+        if(temp->back()->p.size() == 1){
+            temp->back()->setLen(0);
+            temp->back()->setCom(xy(to_xy(temp->back()->p.back())));
+        }
     }
     _input=temp;
 }

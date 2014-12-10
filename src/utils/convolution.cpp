@@ -26,7 +26,7 @@ Convolution::Convolution(RecfgParam &_param):
 bool d_sort_func    (boost::shared_ptr<ConvolInfo> i, boost::shared_ptr<ConvolInfo> j) { return (i->com_dr    < j->com_dr ); }
 bool shift_sort_func(boost::shared_ptr<ConvolInfo> i, boost::shared_ptr<ConvolInfo> j) { return (i->shift_spl < j->shift_spl); }
 
-void Convolution::convolute(){
+bool Convolution::convolute(){
     if(full_search){ com_dr_max = 0.0; }
     else           { com_dr_max = com_dr_thres; }
     int init_shift  =  - p_no_perc_thres * conv_data[CONV_REF]->p_cd->size();
@@ -34,7 +34,7 @@ void Convolution::convolute(){
     conv_distr   .clear();
     conv_accepted.clear();
     if(final_shift - init_shift < 1 ){
-        return;
+        return false;
     }
     conv_distr   .reserve(final_shift - init_shift);
     conv_accepted.reserve(final_shift - init_shift);
@@ -54,7 +54,7 @@ void Convolution::convolute(){
     std::sort(conv_distr.begin(), conv_distr.end(), shift_sort_func);
     std::sort(conv_accepted.begin(), conv_accepted.end(), shift_sort_func);
 
-    find_accepted_tf_zones();
+    return find_accepted_tf_zones();
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -275,8 +275,9 @@ double Convolution::snap_score(boost::shared_ptr<ConvolInfo> input, bool _SVD){/
     }
     double score = err_score - fmin(err_score, (1 - err_score) *
                                                                  ( (1 - occl_score ) *
-                                                                   (1 - com_d_score) * (1 - com_d_score) *
-                                                                   (1 - rot_score  ) * (1 - rot_score  )));
+                                                                   sqr(1 - com_d_score)*
+                                                                   sqr(1 - rot_score  )));
+//    double score = err_score * ( (occl_score ) * sqr(com_d_score) * sqr(rot_score ));
     return score;
 }
 
@@ -297,10 +298,11 @@ double Convolution::weight_func(const PointDataSample& p_ref, const PointDataSam
 
 bool best_score_first_sort_func(TFdata i, TFdata j) { return (i.score > j.score ); }
 
-void Convolution::find_accepted_tf_zones(){
+bool Convolution::find_accepted_tf_zones(){
     bool new_tf_zone = true;
     int i=0, j=0;
     int acc_it_min = 0, acc_it_max = 0;
+    int accepted_tf = 0;
     while((i < conv_accepted.size()) && (j < conv_distr.size())){
         while(( conv_distr[j] != conv_accepted[i] )&&(j < conv_distr.size())){ j++;new_tf_zone = true; }
         acc_it_min = i;
@@ -308,20 +310,22 @@ void Convolution::find_accepted_tf_zones(){
         acc_it_max = i;
         if(new_tf_zone){
             add_accepted_tf(acc_it_min, acc_it_max);
+            accepted_tf++;
         }
         new_tf_zone = false;
     }
     ////////////////////////////////////////STORES ONLY BEST MATCH
-    if(!full_search){
-        if(conv_data[CONV_REF]->tf->size() > 1 ){
-            std::sort(conv_data[CONV_REF]->tf->begin(), conv_data[CONV_REF]->tf->end(), best_score_first_sort_func);
-            conv_data[CONV_REF]->tf->erase(conv_data[CONV_REF]->tf->begin()+1, conv_data[CONV_REF]->tf->end());
-        }
-        if(conv_data[CONV_SPL]->tf->size() > 1 ){
-            std::sort(conv_data[CONV_SPL]->tf->begin(), conv_data[CONV_SPL]->tf->end(), best_score_first_sort_func);
-            conv_data[CONV_SPL]->tf->erase(conv_data[CONV_SPL]->tf->begin()+1, conv_data[CONV_SPL]->tf->end());
-        }
+    if((conv_data[CONV_REF]->tf->size() > 1 )&&(accepted_tf > 0)){
+        std::sort(conv_data[CONV_REF]->tf->end() - accepted_tf, conv_data[CONV_REF]->tf->end(), best_score_first_sort_func);
+        conv_data[CONV_REF]->tf->erase(conv_data[CONV_REF]->tf->end() - accepted_tf + 1, conv_data[CONV_REF]->tf->end());
+
+        std::sort(conv_data[CONV_SPL]->tf->end() - accepted_tf, conv_data[CONV_SPL]->tf->end(), best_score_first_sort_func);
+        conv_data[CONV_SPL]->tf->erase(conv_data[CONV_SPL]->tf->end() - accepted_tf + 1, conv_data[CONV_SPL]->tf->end());
     }
+    if(accepted_tf > 0){
+        return true;
+    }
+    return false;
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -332,10 +336,12 @@ void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){
     Gauss gt_x    , gt_y    , gt_angcos    , gt_angsin,
           gt_x_inv, gt_y_inv, gt_angcos_inv, gt_angsin_inv;
     Gauss g_com_x, g_com_y, g_com_x_inv, g_com_y_inv;
+    Gauss g_len;
     cv::Matx33d T;
     cv::Matx33d Ti;
     double weight_sum = 0;
     double score      = 0;
+    double len_max = fmax(conv_data[CONV_REF]->seg->getParrent()->getLen(), conv_data[CONV_SPL]->seg->getParrent()->getLen());
 
     for(int i = c_acc_it_min; i < c_acc_it_max; i++){
         xy com     = conv_accepted[i]->com_ref;
@@ -348,6 +354,8 @@ void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){
         xy tf_com_inv = mat_mult(Ti, com_inv);
 
         double weight  = conv_accepted[i]->score;
+
+        g_len        .add_w_sample((conv_accepted[i]->it_max_ref - conv_accepted[i]->it_min_ref - 1) /** sample_dist*/, weight);
 
         g_com_x      .add_w_sample(com.x    , weight);
         g_com_y      .add_w_sample(com.y    , weight);
@@ -414,8 +422,13 @@ void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){
                       cov_xy                , g_y_inv.getVariance(), 0      ,
                       0                     , 0                     , var_rot);
 
-    TfVar tf_var    (com    , xy(g_x    .getMean(), g_y    .getMean()), T , Q );
-    TfVar tf_var_inv(com_inv, xy(g_x_inv.getMean(), g_y_inv.getMean()), Ti, Qi);
+    cv::Matx33d Base_noise = cv::Matx33d::eye() * (sqr(2.0 * sample_dist) );
+    Base_noise(2,2) = 0.00001 ;
+    double len_noise_scale = (g_len.getMean() * sample_dist) / len_max;
+    Q  = (Q  + Base_noise) * (1.0 / len_noise_scale);
+    Qi = (Qi + Base_noise) * (1.0 / len_noise_scale);
+    TfVar tf_var    (com    , xy(g_x    .getMean(), g_y    .getMean()), T , Q , g_len.getMean());
+    TfVar tf_var_inv(com_inv, xy(g_x_inv.getMean(), g_y_inv.getMean()), Ti, Qi, g_len.getMean());
 
     conv_data[CONV_REF]->tf->push_back(TFdata(conv_accepted[0]->seg_spl, CONV_REF, score, tf_var    , tf_var_inv));
     conv_data[CONV_SPL]->tf->push_back(TFdata(conv_accepted[0]->seg_ref, CONV_SPL, score, tf_var_inv, tf_var    ));

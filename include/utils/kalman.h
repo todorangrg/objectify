@@ -32,7 +32,8 @@ public:
     void run       (InputData & input,
                     std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >  & neigh_data_oe,
                     std::map <SegmentDataExtPtr, std::vector<NeighDataExt > > & neigh_data_ne,
-                    std::map <SegmentDataPtr   , std::vector<NeighDataInit> > & neigh_data_oi);
+                    std::map <SegmentDataPtr   , std::vector<NeighDataInit> > & neigh_data_oi,
+                    std::map <SegmentDataPtr   , std::vector<NeighDataInit> > & neigh_data_ni);
 
     RState rob_x_now(){return RState(S);}
     RState rob_x_bar(){return RState(S_bar);}
@@ -73,7 +74,7 @@ private:
     void predict_obj    (KInp u, cv::Mat &Gt, cv::Mat& Q);
     void predict_p_cloud(SegmentDataPtrVectorPtr &input, RState  rob_f0, KInp u);
     cv::Mat Gt_Oi(double dt);
-    cv::Mat Q_Oi (double dt);
+    cv::Mat Q_Oi (double _obj_alfa_xy, double _obj_alpha_phi, double dt);
     // ---kalman_prediction
 
     //kalman_update ---
@@ -86,7 +87,8 @@ private:
                                  std::vector<CorrInput>                                   & list_comm,
                                  std::map<SegmentDataExtPtr, std::vector<NeighDataExt > > & neigh_data_oe,
                                  std::map<SegmentDataExtPtr, std::vector<NeighDataExt > > & neigh_data_ne);
-    void propagate_no_update_obj(std::map <SegmentDataPtr  , std::vector<NeighDataInit> > & neigh_data_oi);
+    void propagate_no_update_obj(std::map <SegmentDataPtr  , std::vector<NeighDataInit> > & neigh_data_oi,
+                                 std::map <SegmentDataPtr  , std::vector<NeighDataInit> > & neigh_data_ni);
     bool compute_avg_miu_sigma(std::vector<CorrInput> & list_comm, KObjZ & avg);
     void propag_extr_p_clouds (std::vector<CorrInput> & list_comm, std::map<ObjectDataPtr  , ObjMat>::iterator                        oi);
     void add_new_obj          (SegmentDataPtrVectorPtr & input   , std::map <SegmentDataPtr, std::vector<NeighDataInit> >& neigh_data_oi);

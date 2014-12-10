@@ -110,7 +110,7 @@ void KalmanSLDM::predict_obj(KInp u, Mat& Gt, Mat& Q){
         S.row(i_min + 5) += obj_f0.aphi * u.dt;
 
            Gt_Oi(u.dt) .copyTo(Gt.rowRange(i_min, i_min + obj_param).colRange(i_min, i_min + obj_param));
-        Mat(Q_Oi(u.dt)).copyTo(Q .rowRange(i_min, i_min + obj_param).colRange(i_min, i_min + obj_param));
+        Mat(Q_Oi(obj_alfa_xy, obj_alfa_phi, u.dt)).copyTo(Q .rowRange(i_min, i_min + obj_param).colRange(i_min, i_min + obj_param));
 
         //cout<<"Vt_Oi_OO="<<endl<<" "<<Vt_Oi_OO<<endl<<endl;
         //cout<<"S_obj_predicted"<<endl<<" "<<Mat(S.rowRange(i_min,i_min+3))<<endl<<endl;
@@ -157,25 +157,25 @@ cv::Mat KalmanSLDM::Gt_Oi(double dt){
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-cv::Mat KalmanSLDM::Q_Oi(double dt){
+cv::Mat KalmanSLDM::Q_Oi(double _obj_alfa_xy, double _obj_alpha_phi, double dt){
     Mat Q(obj_param,obj_param,CV_64F,0.);
     //                    v--major diagonal--v                                                      v--top-diag area--v
-    /*xx-xx*/    Q.row(0).col(0) = obj_alfa_xy   * sqr(sqr(dt)) * dt / 20.0;/*xx-vx*/    Q.row(0).col(3) = obj_alfa_xy   * sqr(sqr(dt)) / 8.0; /*xx-ax*/Q.row(0).col(6) = obj_alfa_xy * sqr(dt) * dt / 6.0;
-    /*xy-xy*/    Q.row(1).col(1) = obj_alfa_xy   * sqr(sqr(dt)) * dt / 20.0;/*xy-vy*/    Q.row(1).col(4) = obj_alfa_xy   * sqr(sqr(dt)) / 8.0; /*xy-ay*/Q.row(1).col(7) = obj_alfa_xy * sqr(dt) * dt / 6.0;
-    /*xphi-xphi*/Q.row(2).col(2) = obj_alfa_phi  * sqr(dt)      * dt /  3.0;/*xphi-vphi*/Q.row(2).col(5) = obj_alfa_phi  * sqr(dt)      / 2.0;
-    /*vx-vx*/    Q.row(3).col(3) = obj_alfa_xy   * sqr(dt)      * dt /  3.0;/*vx-ax*/    Q.row(3).col(6) = obj_alfa_xy   * sqr(dt)      / 2.0;
-    /*vy-vy*/    Q.row(4).col(4) = obj_alfa_xy   * sqr(dt)      * dt /  3.0;/*vy-ay*/    Q.row(4).col(7) = obj_alfa_xy   * sqr(dt)      / 2.0;
-    /*vphi-vphi*/Q.row(5).col(5) = obj_alfa_phi  * dt;
-    /*ax-ax*/    Q.row(6).col(6) = obj_alfa_xy   * dt;
-    /*ay-ay*/    Q.row(7).col(7) = obj_alfa_xy   * dt;
+    /*xx-xx*/    Q.row(0).col(0) = _obj_alfa_xy   * sqr(sqr(dt)) * dt / 20.0;/*xx-vx*/    Q.row(0).col(3) = _obj_alfa_xy   * sqr(sqr(dt)) / 8.0; /*xx-ax*/Q.row(0).col(6) = _obj_alfa_xy * sqr(dt) * dt / 6.0;
+    /*xy-xy*/    Q.row(1).col(1) = _obj_alfa_xy   * sqr(sqr(dt)) * dt / 20.0;/*xy-vy*/    Q.row(1).col(4) = _obj_alfa_xy   * sqr(sqr(dt)) / 8.0; /*xy-ay*/Q.row(1).col(7) = _obj_alfa_xy * sqr(dt) * dt / 6.0;
+    /*xphi-xphi*/Q.row(2).col(2) = _obj_alpha_phi  * sqr(dt)     * dt /  3.0;/*xphi-vphi*/Q.row(2).col(5) = _obj_alpha_phi * sqr(dt)      / 2.0;
+    /*vx-vx*/    Q.row(3).col(3) = _obj_alfa_xy   * sqr(dt)      * dt /  3.0;/*vx-ax*/    Q.row(3).col(6) = _obj_alfa_xy   * sqr(dt)      / 2.0;
+    /*vy-vy*/    Q.row(4).col(4) = _obj_alfa_xy   * sqr(dt)      * dt /  3.0;/*vy-ay*/    Q.row(4).col(7) = _obj_alfa_xy   * sqr(dt)      / 2.0;
+    /*vphi-vphi*/Q.row(5).col(5) = _obj_alpha_phi  * dt;
+    /*ax-ax*/    Q.row(6).col(6) = _obj_alfa_xy   * dt;
+    /*ay-ay*/    Q.row(7).col(7) = _obj_alfa_xy   * dt;
     //    v--bottom-diag area--v
-    /*vx-xx*/    Q.row(3).col(0) = obj_alfa_xy   * sqr(sqr(dt)) / 8.0;
-    /*vy-xy*/    Q.row(4).col(1) = obj_alfa_xy   * sqr(sqr(dt)) / 8.0;
-    /*vphi-xphi*/Q.row(5).col(2) = obj_alfa_phi  * sqr(dt)      / 2.0;
-    /*ax-xx*/    Q.row(6).col(0) = obj_alfa_xy   * sqr(dt) * dt / 6.0;
-    /*ay-xy*/    Q.row(7).col(1) = obj_alfa_xy   * sqr(dt) * dt / 6.0;
-    /*ax-vx*/    Q.row(6).col(3) = obj_alfa_xy   * sqr(dt)      / 2.0;
-    /*ay-vy*/    Q.row(7).col(4) = obj_alfa_xy   * sqr(dt)      / 2.0;
+    /*vx-xx*/    Q.row(3).col(0) = _obj_alfa_xy   * sqr(sqr(dt)) / 8.0;
+    /*vy-xy*/    Q.row(4).col(1) = _obj_alfa_xy   * sqr(sqr(dt)) / 8.0;
+    /*vphi-xphi*/Q.row(5).col(2) = _obj_alpha_phi  * sqr(dt)      / 2.0;
+    /*ax-xx*/    Q.row(6).col(0) = _obj_alfa_xy   * sqr(dt) * dt / 6.0;
+    /*ay-xy*/    Q.row(7).col(1) = _obj_alfa_xy   * sqr(dt) * dt / 6.0;
+    /*ax-vx*/    Q.row(6).col(3) = _obj_alfa_xy   * sqr(dt)      / 2.0;
+    /*ay-vy*/    Q.row(7).col(4) = _obj_alfa_xy   * sqr(dt)      / 2.0;
     return Q;
 }
 

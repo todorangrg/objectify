@@ -230,10 +230,10 @@ void PlotData::plot_kalman(const SegmentDataExtPtrVectorPtr &data, KalmanSLDM& k
 void PlotData::plot_corr_links(const std::vector<CorrInput>& list,cv::Scalar color_o2n,cv::Scalar color_n2o){
     for(std::vector<CorrInput>::const_iterator it_corr=list.begin();it_corr!=list.end();it_corr++){
         if( it_corr->reverse ){
-            putArrow(w2i(tf_sns.s2r(it_corr->frame_new->conv->com)),w2i(tf_sns.s2r(it_corr->frame_old->conv->com)),color_n2o,2);
+            putArrow(w2i(tf_sns.s2r(it_corr->frame_new->getCom())),w2i(tf_sns.s2r(it_corr->frame_old->getCom())),color_n2o,2);
         }
         else{
-            putArrow(w2i(tf_sns.s2r(it_corr->frame_old->conv->com)),w2i(tf_sns.s2r(it_corr->frame_new->conv->com)),color_o2n,2);
+            putArrow(w2i(tf_sns.s2r(it_corr->frame_old->getCom())),w2i(tf_sns.s2r(it_corr->frame_new->getCom())),color_o2n,2);
         }
         std::stringstream ss; ss << 100*it_corr->stitch_perc<<"%";
         putText(plot,ss.str().c_str(),w2i(tf_sns.s2r(xy((it_corr->frame_old->conv->com.x+it_corr->frame_new->conv->com.x)/2.0,

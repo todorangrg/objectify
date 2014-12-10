@@ -12,8 +12,14 @@ void KalmanSLDM::init_Oi(ObjectDataPtr obj, xy obj_com_bar_f1, double dt){
     if(Oi.count(obj) == 0){ return; }
     int i_min = Oi[obj].i_min;
 
-    S.row(i_min + 0) = rob_bar_f0.xx + obj_com_bar_f1.x * cos(rob_bar_f0.xphi) - obj_com_bar_f1.y * sin(rob_bar_f0.xphi);
-    S.row(i_min + 1) = rob_bar_f0.xy + obj_com_bar_f1.y * cos(rob_bar_f0.xphi) + obj_com_bar_f1.x * sin(rob_bar_f0.xphi);
+    S.row(i_min + 0) = cos(rob_bar_f0.xphi) * obj_com_bar_f1.x -
+                       sin(rob_bar_f0.xphi) * obj_com_bar_f1.y +
+                       cos(tf_sns.getPhi()) * (rob_bar_f0.xx - tf_sns.getXY().x + tf_sns.getXY().x * cos(rob_bar_f0.xphi) - tf_sns.getXY().y * sin(rob_bar_f0.xphi)) +
+                       sin(tf_sns.getPhi()) * (rob_bar_f0.xy - tf_sns.getXY().y + tf_sns.getXY().y * cos(rob_bar_f0.xphi) + tf_sns.getXY().x * sin(rob_bar_f0.xphi));
+    S.row(i_min + 1) = cos(rob_bar_f0.xphi) * obj_com_bar_f1.y +
+                       sin(rob_bar_f0.xphi) * obj_com_bar_f1.x +
+                       cos(tf_sns.getPhi()) * (   rob_bar_f0.xy - tf_sns.getXY().y + tf_sns.getXY().y * cos(rob_bar_f0.xphi) + tf_sns.getXY().x * sin(rob_bar_f0.xphi)) +
+                       sin(tf_sns.getPhi()) * ( - rob_bar_f0.xx + tf_sns.getXY().x - tf_sns.getXY().x * cos(rob_bar_f0.xphi) + tf_sns.getXY().y * sin(rob_bar_f0.xphi));
     S.row(i_min + 2) = (S.row(i_min + 5) * dt + S.row(i_min + 8) * sqr(dt) / 2.0);//rob_bar_f0.xphi ;
 }
 
@@ -28,20 +34,39 @@ void KalmanSLDM::update_Oi(ObjectDataPtr seg, KObjZ kObjZ){
 
     ///PREDICTED OBSERVATION----
     Mat h_bar_f1(z_param, 1, CV_64F, 0.0);
-    h_bar_f1.row(0) = (obj_bar_f0.xx   - rob_bar_f0.xx) * cos(rob_bar_f0.xphi) + (obj_bar_f0.xy - rob_bar_f0.xy) * sin(rob_bar_f0.xphi);
-    h_bar_f1.row(1) = (obj_bar_f0.xy   - rob_bar_f0.xy) * cos(rob_bar_f0.xphi) - (obj_bar_f0.xx - rob_bar_f0.xx) * sin(rob_bar_f0.xphi);
+
+    h_bar_f1.row(0) = cos(rob_bar_f0.xphi) * obj_bar_f0.xx +
+                      sin(rob_bar_f0.xphi) * obj_bar_f0.xy +
+                      cos(tf_sns.getPhi()) * ( - tf_sns.getXY().x + (tf_sns.getXY().x - rob_bar_f0.xx) * cos(rob_bar_f0.xphi) +
+                                                                    (tf_sns.getXY().y - rob_bar_f0.xy) * sin(rob_bar_f0.xphi)) +
+                      sin(tf_sns.getPhi()) * ( - tf_sns.getXY().y + (tf_sns.getXY().y - rob_bar_f0.xy) * cos(rob_bar_f0.xphi) -
+                                                                    (tf_sns.getXY().x - rob_bar_f0.xx) * sin(rob_bar_f0.xphi));
+    h_bar_f1.row(1) = cos(rob_bar_f0.xphi) * obj_bar_f0.xy -
+                      sin(rob_bar_f0.xphi) * obj_bar_f0.xx +
+                      cos(tf_sns.getPhi()) * ( - tf_sns.getXY().y + (tf_sns.getXY().y - rob_bar_f0.xy) * cos(rob_bar_f0.xphi) -
+                                                                    (tf_sns.getXY().x - rob_bar_f0.xx) * sin(rob_bar_f0.xphi)) +
+                      sin(tf_sns.getPhi()) * ( + tf_sns.getXY().x - (tf_sns.getXY().x - rob_bar_f0.xx) * cos(rob_bar_f0.xphi) -
+                                                                    (tf_sns.getXY().y - rob_bar_f0.xy) * sin(rob_bar_f0.xphi));
     h_bar_f1.row(2) =  obj_bar_f0.xphi ;//- rob_bar_f0.xphi;
     ///----PREDICTED OBSERVATION
 
     ///PREDICTED OBSERVATION JACOBIAN AND NOISE----
     Mat Ht_low(Mat(z_param, rob_param + obj_param, CV_64F, 0.));
 
-    Ht_low.row(0).col(0) = - cos(rob_bar_f0.xphi); Ht_low.row(0).col(1) = - sin(rob_bar_f0.xphi);
-    Ht_low.row(1).col(0) =   sin(rob_bar_f0.xphi); Ht_low.row(1).col(1) = - cos(rob_bar_f0.xphi) ;
+    Ht_low.row(0).col(0) = - cos(rob_bar_f0.xphi) * cos(tf_sns.getPhi()) + sin(rob_bar_f0.xphi) * sin(tf_sns.getPhi());
+    Ht_low.row(0).col(1) = - sin(rob_bar_f0.xphi) * cos(tf_sns.getPhi()) - cos(rob_bar_f0.xphi) * sin(tf_sns.getPhi());
+    Ht_low.row(1).col(0) =   cos(rob_bar_f0.xphi) * sin(tf_sns.getPhi()) + sin(rob_bar_f0.xphi) * cos(tf_sns.getPhi());
+    Ht_low.row(1).col(1) = - cos(rob_bar_f0.xphi) * cos(tf_sns.getPhi()) + sin(rob_bar_f0.xphi) * sin(tf_sns.getPhi());
     Ht_low.row(2).col(2) = - 1.;
 
-    Ht_low.row(0).col(2) = - (obj_bar_f0.xx - rob_bar_f0.xx) * sin(rob_bar_f0.xphi) + (obj_bar_f0.xy - rob_bar_f0.xy) * cos(rob_bar_f0.xphi);
-    Ht_low.row(1).col(2) = - (obj_bar_f0.xy - rob_bar_f0.xy) * sin(rob_bar_f0.xphi) - (obj_bar_f0.xx - rob_bar_f0.xx) * cos(rob_bar_f0.xphi);
+    Ht_low.row(0).col(2) =    cos(rob_bar_f0.xphi) * obj_bar_f0.xy -
+                              sin(rob_bar_f0.xphi) * obj_bar_f0.xx +
+                              cos(tf_sns.getPhi()) * (   (tf_sns.getXY().y - rob_bar_f0.xy) * cos(rob_bar_f0.xphi) - (tf_sns.getXY().x - rob_bar_f0.xx) * sin(rob_bar_f0.xphi)) -
+                              sin(tf_sns.getPhi()) * (   (tf_sns.getXY().x - rob_bar_f0.xx) * cos(rob_bar_f0.xphi) + (tf_sns.getXY().y - rob_bar_f0.xy) * sin(rob_bar_f0.xphi));
+    Ht_low.row(1).col(2) =  - cos(rob_bar_f0.xphi) * obj_bar_f0.xx -
+                              sin(rob_bar_f0.xphi) * obj_bar_f0.xy +
+                              cos(tf_sns.getPhi()) * ( - (tf_sns.getXY().x - rob_bar_f0.xx) * cos(rob_bar_f0.xphi) - (tf_sns.getXY().y - rob_bar_f0.xy) * sin(rob_bar_f0.xphi)) +
+                              sin(tf_sns.getPhi()) * ( - (tf_sns.getXY().y - rob_bar_f0.xy) * cos(rob_bar_f0.xphi) + (tf_sns.getXY().x - rob_bar_f0.xx) * sin(rob_bar_f0.xphi));
 
     Ht_low.row(0).col(3) =   cos(rob_bar_f0.xphi); Ht_low.row(0).col(4) = sin(rob_bar_f0.xphi);
     Ht_low.row(1).col(3) = - sin(rob_bar_f0.xphi); Ht_low.row(1).col(4) = cos(rob_bar_f0.xphi) ;

@@ -44,7 +44,7 @@ void Correlation::run(InputData &input, KalmanSLDM k, bool new_frame){
     run_conv(input, k);
 
 
-    update_neigh_list();//needed to kick out from the lists the links that had no tf...however, the keys remain
+    //update_neigh_list();//needed to kick out from the lists the links that had no tf...however, the keys remain
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -62,8 +62,26 @@ void Correlation::run_conv(InputData &input, KalmanSLDM k){
     int iii=0;
     for(std::vector<CorrInput>::iterator it = corr_list.begin(); it!= corr_list.end();it++){
         if(create_normal_database(*it)){//!!
-            convolute();//!!
-            //SEE WHAT YOU DO IF NOTHING IS SMALLER THAN SCORE_THRES
+            if( convolute() ){//!!
+                for(std::vector<NeighDataExt>::iterator it_seg  = neigh_data_ext[FRAME_OLD][it->frame_old].begin();
+                                                        it_seg != neigh_data_ext[FRAME_OLD][it->frame_old].end(); it_seg++){
+                    if(it->frame_new == it_seg->neigh){ it_seg->tf = it->frame_old->conv->tf->back().tf; it_seg->has_tf = true; break;}
+                }
+                for(std::vector<NeighDataExt>::iterator it_seg  = neigh_data_ext[FRAME_NEW][it->frame_new].begin();
+                                                        it_seg != neigh_data_ext[FRAME_NEW][it->frame_new].end(); it_seg++){
+                    if(it->frame_old == it_seg->neigh){ it_seg->tf = it->frame_new->conv->tf->back().tf; it_seg->has_tf = true; break;}
+                }
+
+                for(std::vector<NeighDataInit>::iterator it_seg  = neigh_data_init[FRAME_OLD][it->frame_old->getParrent()].begin();
+                                                         it_seg != neigh_data_init[FRAME_OLD][it->frame_old->getParrent()].end(); it_seg++){
+                    if(it->frame_new->getParrent() == it_seg->neigh){ it_seg->tf->push_back(it->frame_old->conv->tf->back().tf); it_seg->has_tf = true; break;}
+                }
+                for(std::vector<NeighDataInit>::iterator it_seg  = neigh_data_init[FRAME_NEW][it->frame_new->getParrent()].begin();
+                                                         it_seg != neigh_data_init[FRAME_NEW][it->frame_new->getParrent()].end(); it_seg++){
+                    if(it->frame_old->getParrent() == it_seg->neigh){ it_seg->tf->push_back(it->frame_new->conv->tf->back().tf); it_seg->has_tf = true; break;}
+                }
+            }
+
             if( viz_convol_step_no == iii ){
 
                 if(viz_convol_all){
@@ -249,9 +267,9 @@ void Correlation::update_neigh_list(){// TODO INEFFICIENT FASTLY WRITTEN
                 index++;
             }
             index = 0;
-            if(neigh_data_ext[FRAME_OLD].count(it_corr->frame_old) == 0){
-                continue;
-            }
+//            if(neigh_data_ext[FRAME_OLD].count(it_corr->frame_old) == 0){
+//                continue;
+//            }
             for(std::vector<NeighDataExt>::iterator it_neigh = neigh_data_ext[FRAME_OLD][it_corr->frame_old].begin(); it_neigh != neigh_data_ext[FRAME_OLD][it_corr->frame_old].end(); it_neigh++){
                 if( it_neigh->neigh == it_corr->frame_new ){
                     neigh_data_ext[FRAME_OLD][it_corr->frame_old].erase(neigh_data_ext[FRAME_OLD][it_corr->frame_old].begin() + index);

@@ -37,9 +37,7 @@ void DataProcessing::run(bool new_frame){
         return;
     }
 
-    //advance kalman in main
     k.prediction(k.seg_init, input.u);
-    //k.predict(v robot, dt)   make it bool, when not possible loop without doing anything
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -74,7 +72,7 @@ void DataProcessing::run(bool new_frame){
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     t0 = ros::Time::now();
-    k.run(input, correlation.neigh_data_ext[FRAME_OLD], correlation.neigh_data_ext[FRAME_NEW], correlation.neigh_data_init[FRAME_OLD]);
+    k.run(input, correlation.neigh_data_ext[FRAME_OLD], correlation.neigh_data_ext[FRAME_NEW], correlation.neigh_data_init[FRAME_OLD], correlation.neigh_data_init[FRAME_NEW]);
     info.str(""); info<<"[ms]Kalman run time = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot.putInfoText(info,0,plot.black);//does not freeze value in step sim mode
 
     t0 = ros::Time::now();

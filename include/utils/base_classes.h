@@ -19,6 +19,7 @@ class IteratorIndexSet;
 class SensorFrame;
 class ObjectData;
 class KalmanSLDM;
+class TFdata;
 
 typedef std::vector<PointData>                     PointDataVector;
 typedef boost::shared_ptr<PointDataVector>         PointDataVectorPtr;
@@ -83,33 +84,7 @@ enum CorrList{
     EXT
 };
 
-///------------------------------------------------------------------------------------------------------------------------------------------------///
-//TODO template it
-class NeighDataInit{
-public:
 
-    SegmentDataPtr neigh;
-    double         prob_fwd;
-    double         prob_rev;
-
-    //Constructors & Destructors
-    NeighDataInit(SegmentDataPtr _neigh, double _prob_fwd, double _prob_rev): neigh(_neigh), prob_fwd(_prob_fwd), prob_rev(_prob_rev){}
-    ~NeighDataInit(){}
-};
-
-class NeighDataExt{
-public:
-
-    SegmentDataExtPtr neigh;
-    double            prob_fwd;
-    double            prob_rev;
-
-    //Constructors & Destructors
-    NeighDataExt(SegmentDataExtPtr _neigh, double _prob_fwd, double _prob_rev): neigh(_neigh), prob_fwd(_prob_fwd), prob_rev(_prob_rev){}
-    ~NeighDataExt(){}
-};
-
-///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 class RecfgParam{
 public:
@@ -261,6 +236,8 @@ class SensorTf{///TODO DISCARD AND USE TF LIBRARY
 public:
 
     void init();
+    xy     getXY() {return    xy(Ms2r.at<double>(0,2), Ms2r.at<double>(1,2));}
+    double getPhi(){return atan2(Ms2r.at<double>(1,0), Ms2r.at<double>(0,0));}
     xy s2r(double _x, double _y);
     xy r2s(double _x, double _y);
     xy s2r(const xy &_p) {
@@ -271,7 +248,6 @@ public:
     }
     SensorTf(){init();}
 private:
-
     cv::Mat_<double> Mr2s;
     cv::Mat_<double> Ms2r;
 };
@@ -289,7 +265,7 @@ public:
     //Constructors & Destructors
     PointData()       : r(0.0), angle(0.0)    {}
     PointData(polar p): r(p.r), angle(p.angle){}
-    ~PointData(){}
+    //~PointData(){}
 };
 
 class PointDataCpy{
@@ -329,9 +305,10 @@ public:
     xy             com_tf;
     cv::Matx33d    T;       // tf parrent -> neighbour
     cv::Matx33d    Q;  // covariance of tf-ed parrent icp com
+    double         len;
 
     //Constructors & Destructors
-    TfVar(xy _com, xy _com_tf, cv::Matx33d _T, cv::Matx33d _Q):com(_com), com_tf(_com_tf), T(_T), Q(_Q){}
+    TfVar(xy _com, xy _com_tf, cv::Matx33d _T, cv::Matx33d _Q, double _len):com(_com), com_tf(_com_tf), T(_T), Q(_Q), len(_len){}
     TfVar(){}
     ~TfVar(){}
 };
@@ -471,6 +448,36 @@ void SegCopy(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > & from
         }
     }
 }
+
+///------------------------------------------------------------------------------------------------------------------------------------------------///
+//TODO template it
+class NeighDataInit{
+public:
+
+    SegmentDataPtr neigh;
+    double         prob_fwd;
+    double         prob_rev;
+    boost::shared_ptr<std::vector<TfVar> > tf;
+    bool           has_tf;
+
+    //Constructors & Destructors
+    NeighDataInit(SegmentDataPtr _neigh, double _prob_fwd, double _prob_rev): neigh(_neigh), prob_fwd(_prob_fwd), prob_rev(_prob_rev), has_tf(false), tf(new std::vector<TfVar>){}
+    ~NeighDataInit(){}
+};
+
+class NeighDataExt{
+public:
+
+    SegmentDataExtPtr neigh;
+    double            prob_fwd;
+    double            prob_rev;
+    TfVar             tf;
+    bool              has_tf;
+
+    //Constructors & Destructors
+    NeighDataExt(SegmentDataExtPtr _neigh, double _prob_fwd, double _prob_rev): neigh(_neigh), prob_fwd(_prob_fwd), prob_rev(_prob_rev), has_tf(false){}
+    ~NeighDataExt(){}
+};
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
