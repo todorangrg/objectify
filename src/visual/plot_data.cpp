@@ -174,9 +174,7 @@ void PlotData::plot_segm_tf(const SegmentDataExtPtrVectorPtr &data, int frame, c
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 void PlotData::plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k){
-    if(!data){
-        return;
-    }
+    if((!data)||(!k.pos_init)){ return; }
 
     putArrow(w2i(0,0),w2i(k.S.at<double>(0,0) - k.S_bar.at<double>(0,0), k.S.at<double>(1,0) - k.S_bar.at<double>(1,0)),magenta,2);
 
@@ -192,8 +190,6 @@ void PlotData::plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k){
     cv::Matx22d rot_rob_bar(cos(-rob_bar_xphi_f0),-sin(-rob_bar_xphi_f0),sin(-rob_bar_xphi_f0), cos(-rob_bar_xphi_f0));
 
     cov_xy22 = Mw2i22 * rot_rob_bar * cov_xy22 *rot_rob_bar.t() * Mw2i22.t();
-
-
 
     cv::RotatedRect ellips = cov2rect(cov_xy22,w2i(k.S.at<double>(0,0) - rob_bar_xx_f0,k.S.at<double>(1,0) - rob_bar_xy_f0));
     cv::ellipse(plot,ellips,magenta,2);
@@ -242,9 +238,7 @@ void PlotData::update(){
         imshow(wndView_,plot);
         waitKey(10);
 
-        for(int i=0; i<50 ; i++){
-            text[i] = false;
-        }
+        for(int i=0; i<50 ; i++){ text[i] = false; }
 
         plot.release();
         namedWindow(wndView_, 1);

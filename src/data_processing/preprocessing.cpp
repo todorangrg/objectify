@@ -2,7 +2,6 @@
 #include "utils/math.h"
 #include "visual/plot_data.h"
 
-
 Preprocessing::Preprocessing(RecfgParam &_param, PlotData& _plot):
     filter_input(_param.preproc_filter),
     filter_circle_rad(_param.preproc_filter_circle_rad),

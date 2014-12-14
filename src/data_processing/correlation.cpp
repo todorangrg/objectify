@@ -15,18 +15,17 @@ Correlation::Correlation(RecfgParam &_param,PlotData& _plot_data,PlotConv& _plot
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void Correlation::run(InputData &input, KalmanSLDM k, bool new_frame){
+void Correlation::run(InputData &input, KalmanSLDM k){
     corr_list.clear();
     neigh_data_init[0].clear();
     neigh_data_init[1].clear();
     neigh_data_ext [0].clear();
     neigh_data_ext [1].clear();
 
-    if(!input.seg_init/*.is_valid*/){ return; }
+    if(!input.seg_init){ return; }
 
-    //calc_stitch_perc_ext(input.seg_ext,k.seg_ext, FRAME_NEW);
     calc_stitch_perc(input.seg_init,k.seg_init, FRAME_NEW);
-    if(k.seg_init){
+    if(k.seg_init->size() > 0){
         calc_stitch_perc(k.seg_init,input.seg_init, FRAME_OLD);
         merge_neigh_lists(FRAME_OLD);
         merge_neigh_lists(FRAME_NEW);
@@ -34,7 +33,7 @@ void Correlation::run(InputData &input, KalmanSLDM k, bool new_frame){
     }
     resolve_weak_links(FRAME_NEW);
 
-    if(k.seg_init){
+    if(k.seg_init->size() > 0){
         set_flags(k.seg_ext, FRAME_OLD);
     }
     set_flags(input.seg_ext, FRAME_NEW);
@@ -267,9 +266,6 @@ void Correlation::update_neigh_list(){// TODO INEFFICIENT FASTLY WRITTEN
                 index++;
             }
             index = 0;
-//            if(neigh_data_ext[FRAME_OLD].count(it_corr->frame_old) == 0){
-//                continue;
-//            }
             for(std::vector<NeighDataExt>::iterator it_neigh = neigh_data_ext[FRAME_OLD][it_corr->frame_old].begin(); it_neigh != neigh_data_ext[FRAME_OLD][it_corr->frame_old].end(); it_neigh++){
                 if( it_neigh->neigh == it_corr->frame_new ){
                     neigh_data_ext[FRAME_OLD][it_corr->frame_old].erase(neigh_data_ext[FRAME_OLD][it_corr->frame_old].begin() + index);
@@ -287,7 +283,7 @@ void Correlation::update_neigh_list(){// TODO INEFFICIENT FASTLY WRITTEN
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 bool ang_sort_func    (PointDataCpy i, PointDataCpy j) { return (i.angle  < j.angle ); }
-// TODO TODO TODO DEBUG IT!!!
+
 void Correlation::calc_stitch_perc(const SegmentDataPtrVectorPtr &input_ref, const SegmentDataPtrVectorPtr &input_spl, FrameStatus fr_status){
     neigh_data_init[fr_status].clear();
     neigh_data_ext [fr_status].clear();

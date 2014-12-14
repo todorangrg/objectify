@@ -19,7 +19,7 @@ public:
     std::map <SegmentDataPtr   , std::vector<NeighDataInit> > neigh_data_init[2];
     std::map <SegmentDataExtPtr, std::vector<NeighDataExt > > neigh_data_ext [2];
 
-    void run(InputData& input, KalmanSLDM k, bool new_frame);
+    void run(InputData& input, KalmanSLDM k);
     void plot_all_data(InputData& input, KalmanSLDM k, cv::Scalar color_old, cv::Scalar color_new);
 
     //Constructors & Destructors

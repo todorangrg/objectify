@@ -157,6 +157,7 @@ public:
     double kalman_obj_init_pow_dt;
     double kalman_obj_timeout;
     double kalman_discard_old_seg_perc;
+    double kalman_no_upd_vel_hard0;
 
     std::list<double> smooth_mask;
     void init_normal_smooth_mask();

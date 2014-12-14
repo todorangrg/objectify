@@ -9,6 +9,7 @@ using namespace std;
 
 void KalmanSLDM::prediction(SegmentDataPtrVectorPtr &input, KInp &u){
     //cout<<"prediction:"<<endl;
+    if(!pos_init){return; }
     if(u.v != u.v){ u.v = 0; }//correcting NaN stuff
     if(u.w != u.w){ u.w = 0; }
 
@@ -77,9 +78,9 @@ void KalmanSLDM::predict_rob(RState  rob_f0, KInp u, Mat& Gt_R, Mat& Q){
 
     //////INPUT NOISE ----
     double sign;
-    if(fabs(u.v) > fabs(v_static)){ sign = sgn(u.v); }
+    if(fabs(u.v) > fabs(v_static)){ sign = sgn(u.v);     }
     else{                           sign = sgn(v_static);}
-    if(fabs(u.w) > fabs(w_static)){ sign = sgn(u.w); }
+    if(fabs(u.w) > fabs(w_static)){ sign = sgn(u.w);     }
     else{                           sign = sgn(w_static);}
     double v_noise = sign * fmax(fabs(u.v), fabs(v_static));
     double w_noise = sign * fmax(fabs(u.w), fabs(w_static));

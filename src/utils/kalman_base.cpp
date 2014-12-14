@@ -8,33 +8,40 @@ using namespace std;
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 KalmanSLDM::KalmanSLDM(RecfgParam& _param, SensorTf& _tf_sns) :
-    tf_sns(_tf_sns),
-    rob_alfa_1(_param.kalman_rob_alfa_1),
-    rob_alfa_2(_param.kalman_rob_alfa_2),
-    rob_alfa_3(_param.kalman_rob_alfa_3),
-    rob_alfa_4(_param.kalman_rob_alfa_4),
-    obj_alfa_xy_min(_param.kalman_obj_alfa_xy_min),
-    obj_alfa_xy_max(_param.kalman_obj_alfa_xy_max),
-    obj_alfa_max_vel(_param.kalman_obj_alfa_max_vel),
-    obj_alfa_phi(_param.kalman_obj_alfa_phi),
-    obj_init_pow_dt(_param.kalman_obj_init_pow_dt),
-    obj_timeout(_param.kalman_obj_timeout),
-    discard_old_seg_perc(_param.kalman_discard_old_seg_perc){}
+    tf_sns              (_tf_sns),
+    rob_alfa_1          (_param.kalman_rob_alfa_1),
+    rob_alfa_2          (_param.kalman_rob_alfa_2),
+    rob_alfa_3          (_param.kalman_rob_alfa_3),
+    rob_alfa_4          (_param.kalman_rob_alfa_4),
+    obj_alfa_xy_min     (_param.kalman_obj_alfa_xy_min),
+    obj_alfa_xy_max     (_param.kalman_obj_alfa_xy_max),
+    obj_alfa_max_vel    (_param.kalman_obj_alfa_max_vel),
+    obj_alfa_phi        (_param.kalman_obj_alfa_phi),
+    obj_init_pow_dt     (_param.kalman_obj_init_pow_dt),
+    obj_timeout         (_param.kalman_obj_timeout),
+    discard_old_seg_perc(_param.kalman_discard_old_seg_perc),
+    no_upd_vel_hard0    (_param.kalman_no_upd_vel_hard0),
+    v_static            (0),
+    w_static            (0),
+    pos_init            (false){
+
+    seg_init     = SegmentDataPtrVectorPtr(new SegmentDataPtrVector);
+    seg_init_old = SegmentDataPtrVectorPtr(new SegmentDataPtrVector);
+}
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 void KalmanSLDM::init(RState rob_x){
-    pos_init = false;
+
+    pos_init = true;
     S.release(); S_bar.release(); P.release();;
     Oi.clear();
-    v_static = 0;
-    w_static = 0;
 
-    S_bar.push_back(0.);       S_bar.push_back(0.);       S_bar.push_back(0.);
+    S_bar.push_back(rob_x.xx); S_bar.push_back(rob_x.xy); S_bar.push_back(rob_x.xphi);
     S    .push_back(rob_x.xx); S    .push_back(rob_x.xy); S    .push_back(rob_x.xphi);
     P = Mat::zeros(rob_param, rob_param, CV_64F);
 
-    S_bar_old.push_back(0.);       S_bar_old.push_back(0.);       S_bar_old.push_back(0.);
+    S_bar_old.push_back(rob_x.xx); S_bar_old.push_back(rob_x.xy); S_bar_old.push_back(rob_x.xphi);
     S_old    .push_back(rob_x.xx); S_old    .push_back(rob_x.xy); S_old    .push_back(rob_x.xphi);
     P_old = Mat::zeros(rob_param, rob_param, CV_64F);
 
@@ -47,18 +54,15 @@ void KalmanSLDM::init(RState rob_x){
 
 bool KalmanSLDM::add_obj(ObjectDataPtr seg, KObjZ kObjZ){
     //cout<<"adding object with id"<<endl;
-
     if(Oi.count(seg) > 0){
         //cout<<"warning, adding an allready inserted object"<<endl;
         return false;
     }
-
     RState  rob_bar_f0(S);
     OiState obj_zhat_f1;
     obj_zhat_f1.xx = kObjZ.pos.x; obj_zhat_f1.xy = kObjZ.pos.y; obj_zhat_f1.xphi = kObjZ.phi;
 
     //adding the object state parameters
-
     S.push_back(cos(rob_bar_f0.xphi) * obj_zhat_f1.xx -
                 sin(rob_bar_f0.xphi) * obj_zhat_f1.xy +
                 cos(tf_sns.getPhi()) * (rob_bar_f0.xx - tf_sns.getXY().x + tf_sns.getXY().x * cos(rob_bar_f0.xphi) - tf_sns.getXY().y * sin(rob_bar_f0.xphi)) +
@@ -67,9 +71,6 @@ bool KalmanSLDM::add_obj(ObjectDataPtr seg, KObjZ kObjZ){
                 sin(rob_bar_f0.xphi) * obj_zhat_f1.xx +
                 cos(tf_sns.getPhi()) * (   rob_bar_f0.xy - tf_sns.getXY().y + tf_sns.getXY().y * cos(rob_bar_f0.xphi) + tf_sns.getXY().x * sin(rob_bar_f0.xphi)) +
                 sin(tf_sns.getPhi()) * ( - rob_bar_f0.xx + tf_sns.getXY().x - tf_sns.getXY().x * cos(rob_bar_f0.xphi) + tf_sns.getXY().y * sin(rob_bar_f0.xphi)));
-
-//    S.push_back(rob_bar_f0.xx   + obj_zhat_f1.xx * cos(rob_bar_f0.xphi) - obj_zhat_f1.xy * sin(rob_bar_f0.xphi));
-//    S.push_back(rob_bar_f0.xy   + obj_zhat_f1.xy * cos(rob_bar_f0.xphi) + obj_zhat_f1.xx * sin(rob_bar_f0.xphi));
     S.push_back(rob_bar_f0.xphi + obj_zhat_f1.xphi);
     S.push_back( 0.0 ); S.push_back( 0.0 ); S.push_back( 0.0 ); S.push_back( 0.0 ); S.push_back( 0.0 ); S.push_back( 0.0 );
 
@@ -82,7 +83,6 @@ bool KalmanSLDM::add_obj(ObjectDataPtr seg, KObjZ kObjZ){
     Mat P_ORi(P_OR.rowRange(P_OR.rows - obj_param, P_OR.rows));
     Mat P_ROi(P_RO.colRange(P_RO.cols - obj_param, P_RO.cols));
     Oi[seg].P_OO  = P.rowRange(P.rows - obj_param, P.rows).colRange(P.cols - obj_param, P.cols);
-
 
     ///OBJECT COVARIANCE INITIALIZATION----
     Mat Gt_hinv_R (obj_param, rob_param, CV_64F, 0.);
@@ -100,10 +100,10 @@ bool KalmanSLDM::add_obj(ObjectDataPtr seg, KObjZ kObjZ){
 
     Mat P_OO_V(9, 9, CV_64F, 0.);
 
-//    Mat Gt_hinv_Z (obj_param, z_param, CV_64F, 0.);
-//    Gt_hinv_Z.row(0).col(0) = cos(rob_bar_f0.xphi); Gt_hinv_Z.row(0).col(1) = - sin(rob_bar_f0.xphi);
-//    Gt_hinv_Z.row(1).col(0) = sin(rob_bar_f0.xphi); Gt_hinv_Z.row(1).col(1) =   cos(rob_bar_f0.xphi);
-//    Gt_hinv_Z.row(2).col(2) = 1.;
+    //Mat Gt_hinv_Z (obj_param, z_param, CV_64F, 0.);
+    //Gt_hinv_Z.row(0).col(0) = cos(rob_bar_f0.xphi); Gt_hinv_Z.row(0).col(1) = - sin(rob_bar_f0.xphi);
+    //Gt_hinv_Z.row(1).col(0) = sin(rob_bar_f0.xphi); Gt_hinv_Z.row(1).col(1) =   cos(rob_bar_f0.xphi);
+    //Gt_hinv_Z.row(2).col(2) = 1.;
 
     Q_Oi(obj_alfa_xy_min, obj_alfa_phi, obj_init_pow_dt).copyTo(P_OO_V);
 
@@ -112,7 +112,6 @@ bool KalmanSLDM::add_obj(ObjectDataPtr seg, KObjZ kObjZ){
     Mat(Gt_hinv_R * P.rowRange(0, rob_param).colRange(0, P.cols - obj_param)).copyTo(P_ORi);
     Mat(P_ORi.t()).copyTo(P_ROi);
     ///OBJECT COVARIANCE INITIALIZATION----
-
 
     //cout<<"S="<<endl<<" "<<S<<endl<<endl;
     //cout<<"P="<<endl<<" "<<P<<endl<<endl;
@@ -177,12 +176,8 @@ void KalmanSLDM::update_sub_mat(){
 
 cv::Mat KalmanSLDM::Fxi(ObjectDataPtr seg){
     cv::Mat Fx(rob_param + obj_param, rob_param + obj_param * Oi.size(), CV_64F, 0.);
-    for(int i = 0;i < rob_param; i++){
-        Fx.row(i).col(i) = 1.;
-    }
-    for(int i = 0;i < obj_param; i++){
-        Fx.row(rob_param + i).col(Oi[seg].i_min + i) = 1.;
-    }
+    for(int i = 0;i < rob_param; i++){ Fx.row(i).col(i)                             = 1.; }
+    for(int i = 0;i < obj_param; i++){ Fx.row(rob_param + i).col(Oi[seg].i_min + i) = 1.; }
     return Fx;
 }
 

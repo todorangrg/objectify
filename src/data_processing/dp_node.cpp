@@ -1,13 +1,10 @@
-
 #include "data_processing/dp_node.h"
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/split.hpp>
 
-
 #include "data_processing/dp.h"
 #include "utils/math.h"
 #include "visual/plot_data.h"
-
 
 int main( int argc , char **argv ) {
 
@@ -34,7 +31,7 @@ int main( int argc , char **argv ) {
         dp.k.time_stamp = dp.input.time_stamp;
         dp.new_data = false;
 
-        std::stringstream info; info.str(""); info<<"[ms]Full cycle time = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot_data.putInfoText(info,0,plot_data.black);//does not freeze value in step sim mode
+        std::stringstream info; info.str(""); info<<"[ms]Full cycle busy time  = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot_data.putInfoText(info,0,plot_data.black);//does not freeze value in step sim mode
 
         plot_data.update();
         plot_conv.update();
@@ -71,6 +68,55 @@ DataProcessingNode::DataProcessingNode( ros::NodeHandle & n, RecfgParam& param, 
     pause_gazebo  =  n.serviceClient<std_srvs::Empty>("gazebo/pause_physics");
     unpause_gazebo = n.serviceClient<std_srvs::Empty>("gazebo/unpause_physics");
     //unpause_gazebo.call(empty_srv);
+}
+
+///------------------------------------------------------------------------------------------------------------------------------------------------///
+
+void DataProcessingNode::callback_odom_laser(const nav_msgs::OdometryConstPtr &_odom , const sensor_msgs::LaserScanConstPtr &_laser ){
+    //new_data= true;  
+    RState stateOdom(_odom->pose.pose.position.x, _odom->pose.pose.position.y, quaternion2Angle2D(_odom->pose.pose.orientation));
+    if(!k.pos_init){ k.init(stateOdom); }
+
+    PointDataVectorPtr laser_raw_now( new PointDataVector );
+
+    int nr = (_laser->angle_max - _laser->angle_min) / _laser->angle_increment;
+    for (int i = 0 ; i < nr ; i++ ) {
+        double laser_noise=nd.normalDist(param.sensor_noise_sigma);
+        double laser_i;
+        if((_laser->ranges[i] < param.sensor_r_max )&&(_laser->ranges[i]>0.18)){
+            laser_i = _laser->ranges[i] + laser_noise;
+            laser_raw_now->push_back( polar( laser_i, _laser->angle_min + ( _laser->angle_increment * i ) ) );
+        }
+    }
+    KInp vel(_odom->twist.twist.linear.x,_odom->twist.twist.angular.z);
+
+    Distributions noise;
+    if(fabs(vel.v) < 0.01){ vel.v = 0.; }
+    if(fabs(vel.w) < 0.01){ vel.w = 0.; }
+    vel.v += noise.normalDist(0, sim_rob_alfa_1 * sqr(vel.v) + sim_rob_alfa_2 * sqr(vel.w));
+    vel.w += noise.normalDist(0, sim_rob_alfa_3 * sqr(vel.v) + sim_rob_alfa_4 * sqr(vel.w));//noising the input
+
+    callback_odom_laser_data = InputData(laser_raw_now, stateOdom, vel, _odom->header.stamp.now());
+    param.cb_sensor_point_angl_inc=_laser->angle_increment;
+    param.cb_sensor_point_angl_max=_laser->angle_max;
+    param.cb_sensor_point_angl_min=_laser->angle_min;
+}
+
+/** converts a quaternion to a rotation matrix : http://en.wikipedia.org/wiki/Rotation_matrix#Quaternion
+ * Only valid on a 2D xy plane
+ * opposite =  2 * z * w
+ * adjacent = 1 - 2 * z^2
+ * @param quat
+ * @return angle on xy plane
+ **/
+double DataProcessingNode::quaternion2Angle2D ( const geometry_msgs::Quaternion &quat ) {
+    double opposite =     2 * quat.z * quat.w;
+    double adjacent = 1 - 2 * quat.z * quat.z;
+
+    if      ( opposite >= 0 && adjacent >= 0 ) { return (            asin( opposite ) ); }
+    else if ( opposite >= 0 && adjacent <= 0 ) { return ( M_PI     - asin( opposite ) ); }
+    else if ( opposite <= 0 && adjacent <= 0 ) { return ( M_PI     - asin( opposite ) ); }
+    else                                       { return ( 2 * M_PI + asin( opposite ) ); }
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -145,6 +191,7 @@ void DataProcessingNode::callbackParameters (objectify::objectify_paramConfig &c
     param.kalman_obj_init_pow_dt          = config.kalman_obj_init_pow_dt;
     param.kalman_obj_timeout              = config.kalman_obj_timeout;
     param.kalman_discard_old_seg_perc     = config.kalman_discard_old_seg_perc;
+    param.kalman_no_upd_vel_hard0         = config.kalman_no_upd_vel_hard0;
 
     if( frame2frame = config.sim_pause ){
         if( frame2frame_switch_old != config.sim_step ){ frame2frame_callback = true; }
@@ -153,51 +200,3 @@ void DataProcessingNode::callbackParameters (objectify::objectify_paramConfig &c
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
-
-void DataProcessingNode::callback_odom_laser(const nav_msgs::OdometryConstPtr &_odom , const sensor_msgs::LaserScanConstPtr &_laser ){
-    //new_data= true;
-    RState stateOdom(_odom->pose.pose.position.x, _odom->pose.pose.position.y, quaternion2Angle2D(_odom->pose.pose.orientation));
-
-    PointDataVectorPtr laser_raw_now( new PointDataVector );
-
-    int nr = (_laser->angle_max - _laser->angle_min) / _laser->angle_increment;
-    for (int i = 0 ; i < nr ; i++ ) {
-        double laser_noise=nd.normalDist(param.sensor_noise_sigma);
-        double laser_i;
-        if((_laser->ranges[i] < param.sensor_r_max )&&(_laser->ranges[i]>0.18)){
-            laser_i = _laser->ranges[i] + laser_noise;
-            laser_raw_now->push_back( polar( laser_i, _laser->angle_min + ( _laser->angle_increment * i ) ) );
-        }
-    }
-    KInp vel(_odom->twist.twist.linear.x,_odom->twist.twist.angular.z);
-
-    Distributions noise;
-    if(fabs(vel.v) < 0.01){ vel.v = 0.; }
-    if(fabs(vel.w) < 0.01){ vel.w = 0.; }
-    vel.v += noise.normalDist(0, sim_rob_alfa_1 * sqr(vel.v) + sim_rob_alfa_2 * sqr(vel.w));
-    vel.w += noise.normalDist(0, sim_rob_alfa_3 * sqr(vel.v) + sim_rob_alfa_4 * sqr(vel.w));//noising the input
-
-    callback_odom_laser_data = InputData(laser_raw_now, stateOdom, vel, _odom->header.stamp.now());
-    param.cb_sensor_point_angl_inc=_laser->angle_increment;
-    param.cb_sensor_point_angl_max=_laser->angle_max;
-    param.cb_sensor_point_angl_min=_laser->angle_min;
-}
-
-
-/** converts a quaternion to a rotation matrix : http://en.wikipedia.org/wiki/Rotation_matrix#Quaternion
- * Only valid on a 2D xy plane
- * opposite =  2 * z * w
- * adjacent = 1 - 2 * z^2
- * @param quat
- * @return angle on xy plane
- **/
-double DataProcessingNode::quaternion2Angle2D ( const geometry_msgs::Quaternion &quat ) {
-    double opposite =     2 * quat.z * quat.w;
-    double adjacent = 1 - 2 * quat.z * quat.z;
-
-    if      ( opposite >= 0 && adjacent >= 0 ) { return (            asin( opposite ) ); }
-    else if ( opposite >= 0 && adjacent <= 0 ) { return ( M_PI     - asin( opposite ) ); }
-    else if ( opposite <= 0 && adjacent <= 0 ) { return ( M_PI     - asin( opposite ) ); }
-    else                                       { return ( 2 * M_PI + asin( opposite ) ); }
-}
-

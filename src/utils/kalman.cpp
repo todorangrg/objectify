@@ -11,6 +11,7 @@ using namespace std;
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 void KalmanSLDM::advance(InputData &input, bool advance){
+    if(!pos_init){return; }
     if(advance){
         input.u.dt = (input.time_stamp - time_stamp).toSec();
         if(input.u.v != input.u.v){ input.u.v = 0; }// NaN stuff
@@ -20,17 +21,13 @@ void KalmanSLDM::advance(InputData &input, bool advance){
         S_old       = Mat(S.rows, S.cols, CV_64F); S.copyTo(S_old);//storing a copy of actual state matrices
         P_old       = Mat(P.rows, P.cols, CV_64F); P.copyTo(P_old);
         Oi_old      = Oi;                                          //storing a copy of actual object map
-        if(Oi.size() > 0){                                         //storing a copy of actual kalman seg_init
-            SegCopy(seg_init, seg_init_old);
-        }
+        SegCopy(seg_init, seg_init_old);                           //storing a copy of actual kalman seg_init
     }
     else{
         S       = Mat(S_old.rows, S_old.cols, CV_64F); S_old.copyTo(S);
         P       = Mat(P_old.rows, P_old.cols, CV_64F); P_old.copyTo(P);
         Oi      = Oi_old;
-        if(Oi.size() > 0){
-            SegCopy(seg_init_old, seg_init);
-        }
+        SegCopy(seg_init_old, seg_init);
     }
     update_sub_mat();
 }
@@ -43,7 +40,8 @@ void KalmanSLDM::run(InputData &input,
                      std::map <SegmentDataPtr   , std::vector<NeighDataInit> >& neigh_data_oi,
                      std::map <SegmentDataPtr   , std::vector<NeighDataInit> >& neigh_data_ni){
 
-    if(input.seg_init){ seg_init = SegmentDataPtrVectorPtr(new SegmentDataPtrVector); }
+    if(!pos_init){return; }
+    seg_init = SegmentDataPtrVectorPtr(new SegmentDataPtrVector);
 
     for(std::map<ObjectDataPtr, ObjMat>::iterator oi = Oi.begin(); oi != Oi.end(); oi++){ oi->first->solved = false; }
     bool done = false;
@@ -83,17 +81,21 @@ void KalmanSLDM::run(InputData &input,
 
     remove_lost_obj();
 
-    propagate_no_update_obj(neigh_data_oi, neigh_data_ni);
+    propagate_no_update_obj(neigh_data_oi, neigh_data_ni, input.u.dt);
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
-//TODOTODOTODOTODO!!!!!!!
-void KalmanSLDM::propagate_no_update_obj(std::map <SegmentDataPtr, std::vector<NeighDataInit> >& neigh_data_oi, std::map <SegmentDataPtr  , std::vector<NeighDataInit> > & neigh_data_ni){
+
+void KalmanSLDM::propagate_no_update_obj(std::map <SegmentDataPtr, std::vector<NeighDataInit> >& neigh_data_oi, std::map <SegmentDataPtr  , std::vector<NeighDataInit> > & neigh_data_ni, double _dt){
     //search in seg_init (t-1)
     for(std::map <SegmentDataPtr, std::vector<NeighDataInit> >::iterator s_oi = neigh_data_oi.begin(); s_oi != neigh_data_oi.end(); s_oi++){
         if((s_oi->first->solved)||(Oi.count(s_oi->first->getObj()) == 0)){ continue; }//if segment was solved or its object was erased discard it
 
-        //TODO set vel = 0, accel = 0 if very small when no update
+        //set vel = 0, accel = 0 if very small when no update
+        OiState obj_bar_f0(Oi[s_oi->first->getObj()].S_O);
+        int obj_imin = Oi[s_oi->first->getObj()].i_min;
+        double v_r = sqrt( sqr(obj_bar_f0.vx + obj_bar_f0.ax * _dt) + sqr(obj_bar_f0.vy + obj_bar_f0.ay * _dt) );
+        if( v_r < no_upd_vel_hard0){ cv::Mat(cv::Mat::zeros(obj_param - 3, 1,CV_64F)).copyTo(S.rowRange(obj_imin + 3, obj_imin + obj_param)); }
 
         bool ask_continue = false; bool put_new = false;
         for(std::vector<NeighDataInit>::iterator it_neigh = s_oi->second.begin(); it_neigh != s_oi->second.end(); it_neigh++){

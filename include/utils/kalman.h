@@ -87,7 +87,7 @@ private:
                                  std::map<SegmentDataExtPtr, std::vector<NeighDataExt > > & neigh_data_oe,
                                  std::map<SegmentDataExtPtr, std::vector<NeighDataExt > > & neigh_data_ne);
     void propagate_no_update_obj(std::map <SegmentDataPtr  , std::vector<NeighDataInit> > & neigh_data_oi,
-                                 std::map <SegmentDataPtr  , std::vector<NeighDataInit> > & neigh_data_ni);
+                                 std::map <SegmentDataPtr  , std::vector<NeighDataInit> > & neigh_data_ni, double _dt);
     bool compute_avg_miu_sigma(std::vector<CorrInput> & list_comm, KObjZ & avg);
     void propag_extr_p_clouds (std::vector<CorrInput> & list_comm, std::map<ObjectDataPtr  , ObjMat>::iterator                        oi);
     void add_new_obj          (SegmentDataPtrVectorPtr & input   , std::map <SegmentDataPtr, std::vector<NeighDataInit> >& neigh_data_ni);
@@ -105,6 +105,7 @@ private:
     double&   obj_init_pow_dt;
     double&   obj_timeout;
     double&   discard_old_seg_perc;
+    double&   no_upd_vel_hard0;
 
     SensorTf& tf_sns;
 };

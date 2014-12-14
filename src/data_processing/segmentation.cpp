@@ -46,7 +46,7 @@ void Segmentation::plot_data(InputData &input, KalmanSLDM k){
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 void Segmentation::run(InputData &input, KalmanSLDM &k, bool advance){
-    if(!k.seg_init){
+    if(k.seg_init->size() == 0){
         if(input.is_valid){
             assign_seg_init(input.sensor_filtered,input.seg_init);
             split_com_len(input.seg_init, false);
@@ -316,20 +316,17 @@ void Segmentation::sample_const_angle(SegmentDataExtPtrVectorPtr &input){
                         sample = polar( 0 , sample.angle + angle_inc  );
                     }while( sample_pos_neg < sample_pos_pos/* - quant_err */);
                 }
-                else{
-                    int x=0;
-                }
             }
-//            else if ( quant_pos[sample_pos_neg] == false ){
-//                quant_pos[sample_pos_neg] = true;
-//                sample.r = iis0.p()->r;
-//                iis0.push_bk(temp, PointData( sample));
-//            }
-//            if ( ( iis1.p() == --input->back()->p.end() ) && ( quant_pos[sample_pos_pos] == false ) ){
-//                quant_pos[sample_pos_pos] = true;
-//                sample.r = iis1.p()->r;
-//                iis0.push_bk(temp, PointData( polar(sample.r,sample.angle)));
-//            }
+            else if ( quant_pos[sample_pos_neg] == false ){
+                quant_pos[sample_pos_neg] = true;
+                sample.r = iis0.p()->r;
+                iis0.push_bk(temp, PointData( sample));
+            }
+            if ( ( iis1.p() == --input->back()->p.end() ) && ( quant_pos[sample_pos_pos] == false ) ){
+                quant_pos[sample_pos_pos] = true;
+                sample.r = iis1.p()->r;
+                iis0.push_bk(temp, PointData( polar(sample.r,sample.angle)));
+            }
         }while(iis1.advance(ALL_SEGM, INC) && iis0.advance(ALL_SEGM, INC));
     }
     input = temp;
