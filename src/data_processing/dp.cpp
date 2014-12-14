@@ -76,7 +76,7 @@ void DataProcessing::run(bool new_frame){
     info.str(""); info<<"[ms]Kalman run time = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot.putInfoText(info,0,plot.black);//does not freeze value in step sim mode
 
     t0 = ros::Time::now();
-    plot.plot_kalman(input.seg_ext,k);
+    plot.plot_kalman(k.seg_init,k);
     info.str(""); info<<"[ms]Kalman plot run time = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot.putInfoText(info,0,plot.black);//does not freeze value in step sim mod
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

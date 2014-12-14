@@ -26,15 +26,15 @@ public:
 
     void plot_segm_tf(const SegmentDataExtPtrVectorPtr &data, int frame, cv::Scalar color);
 
-    void plot_kalman(const SegmentDataExtPtrVectorPtr &data, KalmanSLDM& k);
+    void plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k);
 
     //Constructors & Destructors
     PlotData(std::string wndView,RecfgParam &_param, SensorTf& _tf_sns);
     ~PlotData(){}
 
     SensorTf&   tf_sns;
-    int&        image_size;
 private:
+    int         image_size;
     bool        text[50];
 
     bool&       plot_data;

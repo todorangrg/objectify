@@ -109,8 +109,11 @@ void KalmanSLDM::predict_obj(KInp u, Mat& Gt, Mat& Q){
         S.row(i_min + 4) += obj_f0.ay   * u.dt;
         S.row(i_min + 5) += obj_f0.aphi * u.dt;
 
+        double v_r = sqrt( sqr(obj_f0.vx + obj_f0.ax * u.dt) + sqr(obj_f0.vy + obj_f0.ay * u.dt) );
+        double noise_gain = fmax(obj_alfa_xy / 10.0, obj_alfa_xy/*normal value*/ * sqr(v_r * 1.0));//HARDCODED
+
            Gt_Oi(u.dt) .copyTo(Gt.rowRange(i_min, i_min + obj_param).colRange(i_min, i_min + obj_param));
-        Mat(Q_Oi(obj_alfa_xy, obj_alfa_phi, u.dt)).copyTo(Q .rowRange(i_min, i_min + obj_param).colRange(i_min, i_min + obj_param));
+        Mat(Q_Oi(noise_gain, obj_alfa_phi, u.dt)).copyTo(Q .rowRange(i_min, i_min + obj_param).colRange(i_min, i_min + obj_param));
 
         //cout<<"Vt_Oi_OO="<<endl<<" "<<Vt_Oi_OO<<endl<<endl;
         //cout<<"S_obj_predicted"<<endl<<" "<<Mat(S.rowRange(i_min,i_min+3))<<endl<<endl;

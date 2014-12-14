@@ -12,7 +12,7 @@ Segmentation::Segmentation(RecfgParam &_param, SensorTf& _tf_sns, PlotData& _plo
     outl_sigma(_param.segm_outl_sigma),
     outl_prob_thres(_param.segm_outl_prob_thres),
     segm_discont_dist(_param.segm_discont_dist),
-    sensor_range_max(_param.sensor_range_max),
+    sensor_range_max(_param.sensor_r_max),
     angle_inc(_param.cb_sensor_point_angl_inc),
     angle_max(_param.cb_sensor_point_angl_max),
     angle_min(_param.cb_sensor_point_angl_min),
@@ -49,39 +49,39 @@ void Segmentation::run(InputData &input, KalmanSLDM &k, bool advance){
     if(!k.seg_init){
         if(input.is_valid){
             assign_seg_init(input.sensor_filtered,input.seg_init);
-            split_com_len(input.seg_init);
+            split_com_len(input.seg_init, false);
         }
         return;
     }
     tf_frm.init(k.rob_x_old(), k.rob_x_now());
 
     assign_seg_init(input.sensor_filtered,input.seg_init);
-    split_com_len  (input.seg_init);
+    split_com_len  (input.seg_init,      false);
 
     assign_seg_ext    (input.seg_init, input.seg_ext);
     calc_tf           (input.seg_ext , NEW2OLD);
     calc_occlusion    (input.seg_ext , IN_ALL );
     sample_const_angle(input.seg_ext );
     erase_img_outl    (input.seg_ext );
-    split_com_len     (input.seg_ext );
+    split_com_len     (input.seg_ext,    false);
     calc_tf           (input.seg_ext , OLD2NEW);
     sample_const_angle(input.seg_ext );
-    split_com_len     (input.seg_ext );
+    split_com_len     (input.seg_ext,    false);
     link_init_ext     (input.seg_ext );
 
 
     sort_seg_init     (k.seg_init);
-    split_com_len     (k.seg_init);
+    split_com_len     (k.seg_init,     true);
 
     assign_seg_ext    (k.seg_init, k.seg_ext);
-    calc_tf           (k.seg_init, OLD2NEW);
+    calc_tf           (k.seg_init,  OLD2NEW);
     split_for_occl    (k.seg_ext );
-    calc_occlusion    (k.seg_ext , IN_SEG );
-    calc_tf           (k.seg_ext , OLD2NEW);
-    calc_occlusion    (k.seg_ext , IN_ALL );
+    calc_occlusion    (k.seg_ext ,  IN_SEG );
+    calc_tf           (k.seg_ext ,  OLD2NEW);
+    calc_occlusion    (k.seg_ext ,  IN_ALL );
     sample_const_angle(k.seg_ext );
     erase_img_outl    (k.seg_ext );
-    split_com_len     (k.seg_ext );
+    split_com_len     (k.seg_ext ,    false);
     link_init_ext     (k.seg_ext );
 }
 
@@ -413,8 +413,6 @@ void Segmentation::check_neigh_p(const SegmentDataExtPtrVectorPtr &input, Segmen
 //TODO not really efficient
 void Segmentation::link_init_ext(SegmentDataExtPtrVectorPtr &ext){
 
-    int testtt = 0;
-
     for(SegmentDataExtPtrVectorIter inp = ext->begin(); inp != ext->end(); inp++){
 
         PointData p_ext[2] = {(*inp)->p.front(), (*inp)->p.back()};
@@ -424,28 +422,39 @@ void Segmentation::link_init_ext(SegmentDataExtPtrVectorPtr &ext){
         double d_min[2] = {10000, 10000};
         int p=0;
         int p_min[2] = {0,0};
+        double d_in = 0;
+        double d_neg = 0, d_pos = 0;
         for(PointDataVectorIter it_in = bound_low;it_in != bound_high;it_in++){
+            if(it_in != bound_low){
+                PointDataVectorIter it_min = it_in; it_min--;
+                d_in += diff( *it_in, *it_min );
+            }
             if(diff(*it_in, p_ext[0]) < d_min[0]){
                 d_min[0] = diff(*it_in, p_ext[0]);
                 p_min[0] = p;
+                d_neg = d_in;
             }
             if(diff(*it_in, p_ext[1]) < d_min[1]){
                 d_min[1] = diff(*it_in, p_ext[1]);
                 p_min[1] = p;
+                d_pos = d_in;
             }
             p++;
         }
+        d_pos = d_in - d_pos;
         for(PointDataVectorIter it_in = bound_low + p_min[0];(it_in != bound_low + p_min[1] + 1);it_in++){
             it_in->child = (*inp);
-            testtt++;
         }
+
+        (*inp)->len_init_neg = d_neg;
+        (*inp)->len_init_pos = d_pos;
     }
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 // Uses iterators
 template <class SegData>
-void Segmentation::split_com_len(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &_input){
+void Segmentation::split_com_len(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &_input, bool old_init){
     double sample_dist = 0.05;
     boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > temp( new std::vector<boost::shared_ptr<SegData> > );
     temp->reserve(_input->size());
@@ -464,11 +473,17 @@ void Segmentation::split_com_len(boost::shared_ptr<std::vector<boost::shared_ptr
             iis2.min().push_bk(temp, *iis2.min().p(), split_segment);//add the min value in temp, splitting segment or not
             double d_min_maj = 0;
             if( iis2.min().seg() == iis2.maj().seg() ){//if min and maj on same segment
+                split_segment = false;
                 d_min_maj = diff( *iis2.min().p() , *iis2.maj().p() );
                 if(  d_min_maj > segm_discont_dist ){
                     split_segment=true;
-                    temp->back()->setLen(len); len = 0;
-                    temp->back()->setCom(xy(com.x / p_nr, com.y / p_nr)); rest = 0; p_nr = 0; com = xy(0,0);
+                    if(len > min_seg_dist){
+                        if(p_nr == 0){ com = to_xy(temp->back()->p.back()); p_nr = 1; }
+                        temp->back()->setLen(len);
+                        temp->back()->setCom(xy(com.x / p_nr, com.y / p_nr));
+                    }
+                    else{ temp->pop_back(); }//here discards very short segments
+                    len = 0; rest = 0; p_nr = 0; com = xy(0,0);
                 }
                 else{
                     len +=d_min_maj;
@@ -490,15 +505,27 @@ void Segmentation::split_com_len(boost::shared_ptr<std::vector<boost::shared_ptr
                 }
             }
             else{
-                temp->back()->setLen(len); len = 0;
-                temp->back()->setCom(xy(com.x / p_nr, com.y / p_nr)); rest = 0; p_nr = 0; com = xy(0,0);
+                split_segment=true;
+                if(len > min_seg_dist){
+                    if(p_nr == 0){ com = to_xy(temp->back()->p.back()); p_nr = 1;}
+                    temp->back()->setLen(len);
+                    temp->back()->setCom(xy(com.x / p_nr, com.y / p_nr));
+                }
+                else{ temp->pop_back(); }//here discards very short segments
+                len = 0; rest = 0; p_nr = 0; com = xy(0,0);
             }
         }while(iis2.advance(ALL_SEGM,INC));
     }
     if(temp->size() == 1){
-        if(temp->back()->p.size() == 1){
+        if(temp->back()->p.size() == 1){//for one point
             temp->back()->setLen(0);
             temp->back()->setCom(xy(to_xy(temp->back()->p.back())));
+            temp->pop_back();//here discards one point segments
+        }
+    }
+    if(old_init){
+        for(typename std::vector<boost::shared_ptr<SegData> >::iterator inp = temp->begin(); inp != temp->end(); inp++){
+            (*inp)->setCom(tf_sns.r2s( tf_frm.ro2rn( tf_sns.s2r( (*inp)->getCom() ) ) ));
         }
     }
     _input=temp;

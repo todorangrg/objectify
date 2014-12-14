@@ -42,7 +42,7 @@ private:
                                        std::vector<bool> &temp_valid, IteratorIndexSet<SegmentDataExt> iis);
 
     template <class SegData> void calc_tf      (boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &_input, TFmode tf_mode );
-    template <class SegData> void split_com_len(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &_input);
+    template <class SegData> void split_com_len(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &_input, bool old_init);
 
     //Parameters, plot & debug
     double& sensor_range_max;
@@ -50,6 +50,8 @@ private:
     double& angle_max;
     double& angle_min;
     double& segm_discont_dist;
+
+    static const int min_seg_dist = 0.2;
 
     double& outl_circle_rad;
     double& outl_sigma;

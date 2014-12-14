@@ -17,11 +17,11 @@ PlotData::PlotData(std::string wndView,RecfgParam &_param, SensorTf& _tf_sns):
     Plot(wndView),
     plot_data(_param.viz_data),
     plot_grid(_param.viz_data_grid),
-    image_size(_param.viz_data_res),
-    sensor_range_max(_param.sensor_range_max),
+    sensor_range_max(_param.sensor_r_max),
     angle_max(_param.cb_sensor_point_angl_max),
     angle_min(_param.cb_sensor_point_angl_min),
-    tf_sns(_tf_sns){
+    tf_sns(_tf_sns),
+    image_size(900){
 
     namedWindow(wndView_,CV_GUI_EXPANDED);
     resizeWindow(wndView_,900 + 800,900);
@@ -173,7 +173,7 @@ void PlotData::plot_segm_tf(const SegmentDataExtPtrVectorPtr &data, int frame, c
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void PlotData::plot_kalman(const SegmentDataExtPtrVectorPtr &data, KalmanSLDM& k){
+void PlotData::plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k){
     if(!data){
         return;
     }
@@ -199,28 +199,22 @@ void PlotData::plot_kalman(const SegmentDataExtPtrVectorPtr &data, KalmanSLDM& k
     cv::ellipse(plot,ellips,magenta,2);
 
     for(int i=0; i< data->size(); i++){
-        if( data->at(i)->conv ){
-            if(data->at(i)->conv->tf->size() > 0){
-                if(data->at(i)->conv->tf->front().seg->getParrent()){
-                    xy com  =  data->at(i)->conv->com;
-                    ObjectDataPtr obj = data->at(i)->conv->tf->front().seg->getObj();
-                    if( k.Oi.count(obj) != 0 ){
-                        xy v(k.Oi[obj].S_O.at<double>(3,0),k.Oi[obj].S_O.at<double>(4,0));double w = k.Oi[obj].S_O.at<double>(5,0);
-                        v = rot_rob_bar * v;
-                        putArrow(w2i(tf_sns.s2r(com)),w2i(tf_sns.s2r(com + xy(v.x,v.y))),magenta,2);
+        xy com  =  data->at(i)->getCom();
+        ObjectDataPtr obj = data->at(i)->getObj();
+        if( k.Oi.count(obj) != 0 ){
+            xy v(k.Oi[obj].S_O.at<double>(3,0),k.Oi[obj].S_O.at<double>(4,0));double w = k.Oi[obj].S_O.at<double>(5,0);
+            v = rot_rob_bar * v;
+            putArrow(w2i(tf_sns.s2r(com)),w2i(tf_sns.s2r(com + xy(v.x,v.y))),magenta,2);
 
-                        Mw2i22 = cv::Matx22d(Mw2i33(0,0),Mw2i33(0,1),Mw2i33(1,0),Mw2i33(1,1));
-                        cov_xy33 = cv::Matx33d(k.Oi[obj].P_OO.rowRange(3,6).colRange(3,6));
+            Mw2i22 = cv::Matx22d(Mw2i33(0,0),Mw2i33(0,1),Mw2i33(1,0),Mw2i33(1,1));
+            cov_xy33 = cv::Matx33d(k.Oi[obj].P_OO.rowRange(3,6).colRange(3,6));
 
-                        cov_xy22 = cv::Matx22d(cov_xy33(0,0),cov_xy33(0,1),cov_xy33(1,0),cov_xy33(1,1));
+            cov_xy22 = cv::Matx22d(cov_xy33(0,0),cov_xy33(0,1),cov_xy33(1,0),cov_xy33(1,1));
 
-                        cov_xy22 = Mw2i22 * rot_rob_bar * cov_xy22 * rot_rob_bar.t() * Mw2i22.t();
+            cov_xy22 = Mw2i22 * rot_rob_bar * cov_xy22 * rot_rob_bar.t() * Mw2i22.t();
 
-                        ellips = cov2rect(cov_xy22,w2i(tf_sns.s2r(com + xy(v.x,v.y))));
-                        cv::ellipse(plot,ellips,magenta,2);
-                    }
-                }
-            }
+            ellips = cov2rect(cov_xy22,w2i(tf_sns.s2r(com + xy(v.x,v.y))));
+            cv::ellipse(plot,ellips,magenta,2);
         }
     }
 }
@@ -260,6 +254,11 @@ void PlotData::update(){
         plot(Range(0,image_size),Range(0,image_size)).setTo(white);
         plot(Range(0,image_size),Range(image_size,image_size + 800)).setTo(gray);
 
+
+        ellipse(plot, w2i(tf_sns.s2r(0,0)), Size( Mw2i[2][2] * sensor_range_max, Mw2i[2][2]* sensor_range_max), rad_to_deg(-acos(Mw2i[0][0])), rad_to_deg(angle_min), rad_to_deg(angle_max), black );
+        line(plot, w2i(tf_sns.s2r(0,0)), w2i(tf_sns.s2r(sensor_range_max * cos(angle_max), sensor_range_max * sin(angle_max))), black);
+        line(plot, w2i(tf_sns.s2r(0,0)), w2i(tf_sns.s2r(sensor_range_max * cos(angle_min), sensor_range_max * sin(angle_min))), black);
+
         if (plot_grid) {
             for (double y = -round(sensor_range_max + 1); y <= round(sensor_range_max + 1); y+=1.0) {
                 for (double x = -round(sensor_range_max + 1); x <= round(sensor_range_max + 1); x+=1.0) {
@@ -270,10 +269,6 @@ void PlotData::update(){
             line(plot, w2i(0,-round(sensor_range_max + 1)), w2i(0,round(sensor_range_max + 1)), black);
             putText(plot, "X [5m]", w2i(5.2, -0.3), FONT_HERSHEY_PLAIN, 1, black);
             putText(plot, "Y [5m]", w2i(0.2, 5.5), FONT_HERSHEY_PLAIN, 1, black);
-
-            ellipse(plot, w2i(tf_sns.s2r(0,0)), Size( Mw2i[2][2] * sensor_range_max, Mw2i[2][2]* sensor_range_max), rad_to_deg(-acos(Mw2i[0][0])), rad_to_deg(angle_min), rad_to_deg(angle_max), black );
-            line(plot, w2i(tf_sns.s2r(0,0)), w2i(tf_sns.s2r(sensor_range_max * cos(angle_max), sensor_range_max * sin(angle_max))), black);
-            line(plot, w2i(tf_sns.s2r(0,0)), w2i(tf_sns.s2r(sensor_range_max * cos(angle_min), sensor_range_max * sin(angle_min))), black);
         }
 
     }

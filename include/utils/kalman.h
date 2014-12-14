@@ -91,7 +91,7 @@ private:
                                  std::map <SegmentDataPtr  , std::vector<NeighDataInit> > & neigh_data_ni);
     bool compute_avg_miu_sigma(std::vector<CorrInput> & list_comm, KObjZ & avg);
     void propag_extr_p_clouds (std::vector<CorrInput> & list_comm, std::map<ObjectDataPtr  , ObjMat>::iterator                        oi);
-    void add_new_obj          (SegmentDataPtrVectorPtr & input   , std::map <SegmentDataPtr, std::vector<NeighDataInit> >& neigh_data_oi);
+    void add_new_obj          (SegmentDataPtrVectorPtr & input   , std::map <SegmentDataPtr, std::vector<NeighDataInit> >& neigh_data_ni);
     void remove_lost_obj();
     // ---kalman_update
 

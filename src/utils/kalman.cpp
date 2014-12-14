@@ -46,35 +46,40 @@ void KalmanSLDM::run(InputData &input,
     if(input.seg_init){ seg_init = SegmentDataPtrVectorPtr(new SegmentDataPtrVector); }
 
     for(std::map<ObjectDataPtr, ObjMat>::iterator oi = Oi.begin(); oi != Oi.end(); oi++){ oi->first->solved = false; }
-    for(std::map<ObjectDataPtr, ObjMat>::iterator oi = Oi.begin(); oi != Oi.end(); oi++){
-        if(oi->first->solved == true){ continue; }
+    bool done = false;
+    while(!done){
+        done = true;
+        for(std::map<ObjectDataPtr, ObjMat>::iterator oi = Oi.begin(); oi != Oi.end(); oi++){
+            if(oi->first->solved == true){ continue; }
 
-        std::vector<CorrInput>     list_comm; list_comm.reserve(neigh_data_oe.size() * neigh_data_ne.size());
-        std::vector<ObjectDataPtr>    o_comm;    o_comm.reserve(Oi.size());
+            std::vector<CorrInput>     list_comm; list_comm.reserve(neigh_data_oe.size() * neigh_data_ne.size());
+            std::vector<ObjectDataPtr>    o_comm;    o_comm.reserve(Oi.size());
 
-        oi->first->solved = true;   //flag object as extracted
-        o_comm.push_back(oi->first);//append the object in the common list
+            oi->first->solved = true;   //flag object as extracted
+            o_comm.push_back(oi->first);//append the object in the common list
 
-        extract_common_pairs(o_comm, list_comm, neigh_data_oe, neigh_data_ne);//populate o_comm and list_comm according to found object-segment links
+            extract_common_pairs(o_comm, list_comm, neigh_data_oe, neigh_data_ne);//populate o_comm and list_comm according to found object-segment links
 
-        //////////////TODO analysis of merge/split (here you need a list of a vector of pairs for each resolved connect graph)
-        //////////////TODO duplicate objects that are being splitted
+            //////////////TODO analysis of merge/split (here you need a list of a vector of pairs for each resolved connect graph)
+            //////////////TODO duplicate objects that are being splitted
 
-        //erasing duplicate of objects that are being merged
-        for(std::vector<ObjectDataPtr>::iterator o_comm_it = o_comm.begin() + 1; o_comm_it != o_comm.end(); o_comm_it++){
-            rmv_obj(*o_comm_it);
+            //erasing duplicate of objects that are being merged
+            for(std::vector<ObjectDataPtr>::iterator o_comm_it = o_comm.begin() + 1; o_comm_it != o_comm.end(); o_comm_it++){
+                rmv_obj(*o_comm_it); done = false;
+            }
+
+            KObjZ upd_data;//update the stuff
+            if(compute_avg_miu_sigma(list_comm, upd_data)){
+                init_Oi  (oi->first, xy(0,0), input.u.dt);
+                update_Oi(oi->first, upd_data);
+            }
+
+            propag_extr_p_clouds(list_comm, oi);
+            if(!done) { break; }
         }
-
-        KObjZ upd_data;//update the stuff
-        if(compute_avg_miu_sigma(list_comm, upd_data)){
-            init_Oi  (oi->first, xy(0,0), input.u.dt);
-            update_Oi(oi->first, upd_data);
-        }
-
-        propag_extr_p_clouds(list_comm, oi);
     }
 
-    add_new_obj(input.seg_init, neigh_data_oi);
+    add_new_obj(input.seg_init, neigh_data_ni);
 
     remove_lost_obj();
 
@@ -129,16 +134,16 @@ void KalmanSLDM::remove_lost_obj(){
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void KalmanSLDM::add_new_obj(SegmentDataPtrVectorPtr & inp_seg_init, std::map <SegmentDataPtr, std::vector<NeighDataInit> >& neigh_data_oi){
+void KalmanSLDM::add_new_obj(SegmentDataPtrVectorPtr & inp_seg_init, std::map <SegmentDataPtr, std::vector<NeighDataInit> >& neigh_data_ni){
     if(inp_seg_init){
         //search in all new init segments
         for(SegmentDataPtrVectorIter s_ne =  inp_seg_init->begin(); s_ne != inp_seg_init->end(); s_ne ++){
-            if(((*s_ne)->solved)){ continue; }// if not solved yet ( a.k.a they have no tf )
+            if(((*s_ne)->solved)||(neigh_data_ni[*s_ne].size() > 0)){ continue; }// if not solved yet ( a.k.a they have no tf )
             bool found = false;
             //search if they have any neighbours
-            for(std::vector<NeighDataInit> ::iterator s_ni = neigh_data_oi[*s_ne].begin(); s_ni != neigh_data_oi[*s_ne].end(); s_ni++){
-                if((*s_ne == s_ni->neigh)&&(!s_ni->has_tf)){ found = true; break; }
-            }
+//            for(std::vector<NeighDataInit> ::iterator s_ni = neigh_data_oi[*s_ne].begin(); s_ni != neigh_data_oi[*s_ne].end(); s_ni++){
+//                if((*s_ne == s_ni->neigh)&&(!s_ni->has_tf)){ found = true; break; }
+//            }
             //if no, initialize as new objects and propagate point clouds
             if(!found){
                 seg_init->push_back(SegmentDataPtr(new  SegmentData(ObjectDataPtr(new ObjectData(assign_unique_id())),0, (*s_ne))));
@@ -156,41 +161,41 @@ void KalmanSLDM::add_new_obj(SegmentDataPtrVectorPtr & inp_seg_init, std::map <S
 
 void KalmanSLDM::propag_extr_p_clouds(std::vector<CorrInput> & list_comm, std::map<ObjectDataPtr, ObjMat>::iterator oi){
 
+    bool parrent_seg_unique = true;
+    //search first time other extended segments have the same init parrent; if yes, take last frame
     for(std::vector<CorrInput>::iterator entry = list_comm.begin(); entry != list_comm.end(); entry++){
-
-        //search other extended segments have the same init parrent; if yes, take last frame
-        bool parrent_seg_unique = true;
         for(std::vector<CorrInput>::iterator entry_search = list_comm.begin(); entry_search != list_comm.end(); entry_search++){
             if((entry_search != entry)&&((entry_search->frame_old->getParrent() == entry->frame_old->getParrent())||
                                          (entry_search->frame_new->getParrent() == entry->frame_new->getParrent()))){
                 parrent_seg_unique = false; break;
             }
         }
-
+    }
+    for(std::vector<CorrInput>::iterator entry = list_comm.begin(); entry != list_comm.end(); entry++){
         //if not and last frame is longer, take that one TODO:: better stuff here
         SegmentDataPtr s_insert; bool p_tf = false;
         if((parrent_seg_unique)&&
-           (entry->frame_old->getParrent()->getLen() > entry->frame_new->getParrent()->getLen() + 0.01)&&
-            (entry->frame_new->conv->tf->front().tf.len / entry->frame_new->conv->p_cd->size() > 0.7)){
-            s_insert = entry->frame_old->getParrent(); p_tf = true;
-        }
-        else{
-            s_insert = entry->frame_new->getParrent();
-        }
+                            (entry->frame_old->getParrent()->getLen() > entry->frame_new->getParrent()->getLen() + 0.01)&&
+                            (entry->frame_new->conv->tf->front().tf.len / entry->frame_new->conv->p_cd->size() > 0.7)){//HARDCODED
+              s_insert = entry->frame_old->getParrent(); p_tf = true; }
+        else{ s_insert = entry->frame_new->getParrent();              }
         //search if the segment to be propagated was not propagated already
         bool found = false;
-        for(SegmentDataPtrVectorIter it_seg_ins = seg_init->begin(); it_seg_ins != seg_init->end(); it_seg_ins++){
-            if(*it_seg_ins == s_insert){ found = true; break; }
+        for(std::vector<CorrInput>::iterator entry_search = list_comm.begin(); entry_search != list_comm.end(); entry_search++){
+            if((entry_search != entry)&&((entry->frame_old->getParrent() == s_insert)||(entry_search->frame_new->getParrent() == s_insert))){
+                found = true; break;
+            }
         }
         if(!found){//if not append it
-            seg_init->push_back(SegmentDataPtr(new  SegmentData(oi->first,assign_unique_id(), s_insert)));
+            seg_init->push_back(SegmentDataPtr(new  SegmentData(oi->first, assign_unique_id(), s_insert)));
+            seg_init->back()->solved = true;
+            if(p_tf){ seg_init->back()->setCom(mat_mult(entry->frame_old->conv->tf->front().tf.T,seg_init->back()->getCom())); }
             for(PointDataVectorIter pp = s_insert->p.begin(); pp != s_insert->p.end(); pp++){
-                if(p_tf){//if from old frame move it according to the tf
-                    seg_init->back()->p.push_back(to_polar(mat_mult(entry->frame_old->conv->tf->front().tf.T,to_xy(*pp))));
-                }
-                else{
-                    seg_init->back()->p.push_back(*pp);
-                }
+                ::polar p_in;
+                //if from old frame move it according to the tf
+                if(p_tf){ p_in = to_polar(mat_mult(entry->frame_old->conv->tf->front().tf.T,to_xy(*pp))); }
+                else    { p_in = *pp; }
+                seg_init->back()->p.push_back(PointData(p_in));
             }
         }
     }
@@ -295,7 +300,7 @@ void KalmanSLDM::extract_common_pairs(std::vector<ObjectDataPtr>                
 
                     //search in seg_ext(t) for the appended segments and append other possible links that have objects not yet in o_comm
                     for(std::vector<NeighDataExt>::iterator s_n = neigh_data_ne[s_o_neigh->neigh].begin(); s_n != neigh_data_ne[s_o_neigh->neigh].end(); s_n++){
-                        if((s_n->neigh->solved)||(!s_n->has_tf)){ continue; }//if extracted already continue
+                        if((s_n->neigh->solved)||(!s_n->has_tf)||(s_o->first == s_n->neigh)){ continue; }//if extracted already continue
 
                         //search for new objects, that are not yet in o_comm
                         bool found = false;

@@ -129,7 +129,7 @@ void Convolution::create_convol_com(int init_shift,int final_shift,int step){///
         else{
             total_len = (*conv_dist_it)->seg_spl->getLen();
         }
-        if((it_size - 1) * sample_dist / total_len < min_len_perc){//if convolution distance is too small, erase the position
+        if((it_size) * sample_dist / total_len < min_len_perc){//if convolution distance is too small, erase the position
             conv_dist_it = conv_distr.erase(conv_dist_it);
             conv_dist_it--;
         }
@@ -266,18 +266,26 @@ double Convolution::snap_score(boost::shared_ptr<ConvolInfo> input, bool _SVD){/
     double err_score, occl_score, com_d_score, rot_score;
     if(_SVD){ err_score = (1.0 - input->sqr_err / sqr_err_thres);            }                         //best case = 1.0 , worst case < 0.0
     else    { err_score = (1.0 - input->ang_distr.getVariance() / ang_var_thres);}
-    occl_score  = (1.0 - input->pair_no / (double)conv_data[CONV_REF]->p_cd->size()) / p_no_perc_thres;//best case = 0.0 , worst case > 1.0
+
+    double shift_neg = + input->shift_spl;
+    double shift_pos = - input->shift_spl + ((double)conv_data[CONV_SPL]->p_cd->size() - (double)conv_data[CONV_REF]->p_cd->size());
+    double ref_neg   = conv_data[CONV_REF]->seg->len_init_neg / sample_dist;
+    double ref_pos   = conv_data[CONV_REF]->seg->len_init_pos / sample_dist;
+    double spl_neg   = conv_data[CONV_SPL]->seg->len_init_neg / sample_dist;
+    double spl_pos   = conv_data[CONV_SPL]->seg->len_init_pos / sample_dist;
+    double init_snap_len = fmax(0,fmin(ref_neg, spl_neg + shift_neg)) + fmax(0,fmin(ref_pos, spl_pos + shift_pos));
+    occl_score  = (1.0 - (input->pair_no + 1.0 * init_snap_len) / (double)conv_data[CONV_REF]->p_cd->size()) / p_no_perc_thres;//best case = 0.0 , worst case > 1.0
     com_d_score = input->com_dr / com_dr_max;                                                          //best case = 0.0 , worst case > 1.0
     rot_score   = fabs(input->ang_distr.getMean() / ang_mean_thres);                                   //best case = 0.0 , worst case > 1.0
 
     if(( err_score < 0.0)||(occl_score > 1.0)||(com_d_score > 1.0)||(rot_score > 1.0)){
         return 0.0;
     }
-    double score = err_score - fmin(err_score, (1 - err_score) *
-                                                                 ( (1 - occl_score ) *
-                                                                   sqr(1 - com_d_score)*
-                                                                   sqr(1 - rot_score  )));
-//    double score = err_score * ( (occl_score ) * sqr(com_d_score) * sqr(rot_score ));
+//    double score = err_score - fmin(err_score, (1 - err_score) *
+//                                                                 ( (1 - occl_score ) *
+//                                                                   sqr(1 - com_d_score)*
+//                                                                   sqr(1 - rot_score  )));
+    double score = err_score * ( sqr(sqr(1.0 - occl_score))  * sqr(1.0 - com_d_score) * sqr(1.0 - rot_score ));//COST FUNCTION
     return score;
 }
 
@@ -422,9 +430,9 @@ void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){
                       cov_xy                , g_y_inv.getVariance(), 0      ,
                       0                     , 0                     , var_rot);
 
-    cv::Matx33d Base_noise = cv::Matx33d::eye() * (sqr(2.0 * sample_dist) );
-    Base_noise(2,2) = 0.00001 ;
-    double len_noise_scale = (g_len.getMean() * sample_dist) / len_max;
+    cv::Matx33d Base_noise = cv::Matx33d::eye() * (sqr(2.0 * sample_dist) );//HARDCODED
+    Base_noise(2,2) = 0.00001 ;//HARDCODED
+    double len_noise_scale = (g_len.getMean() * sample_dist) / len_max;//COST FUNCTION
     Q  = (Q  + Base_noise) * (1.0 / len_noise_scale);
     Qi = (Qi + Base_noise) * (1.0 / len_noise_scale);
     TfVar tf_var    (com    , xy(g_x    .getMean(), g_y    .getMean()), T , Q , g_len.getMean());

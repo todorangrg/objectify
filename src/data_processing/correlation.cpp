@@ -450,7 +450,7 @@ void Correlation::print_neigh_list(FrameStatus fr_status){
         ss<<" - ";
         for(std::vector<NeighDataInit>::iterator it_neigh = it_seg->second.begin();it_neigh != it_seg->second.end();it_neigh++){
             ss<<print_segment(*it_neigh->neigh);
-            ss<<"   | ";
+            ss<<"    | ";
         }
         ss<<std::endl<<"           ";
         for(std::vector<NeighDataInit>::iterator it_neigh = it_seg->second.begin();it_neigh != it_seg->second.end();it_neigh++){
@@ -497,7 +497,7 @@ void Correlation::print_neigh_list(FrameStatus fr_status){
         ss<<" - ";
         for(std::vector<NeighDataExt>::iterator it_neigh = it_seg_e->second.begin();it_neigh != it_seg_e->second.end();it_neigh++){
             ss<<print_segment(*it_neigh->neigh);
-            ss<<"   | ";
+            ss<<"    | ";
         }
         ss<<std::endl<<"           ";
         for(std::vector<NeighDataExt>::iterator it_neigh = it_seg_e->second.begin();it_neigh != it_seg_e->second.end();it_neigh++){
