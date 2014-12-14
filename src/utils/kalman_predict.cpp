@@ -73,9 +73,6 @@ void KalmanSLDM::predict_rob(RState  rob_f0, KInp u, Mat& Gt_R, Mat& Q){
         Vt_R.row(1).col(0) = u.dt * sin(rob_f0.xphi);
         Vt_R.row(2).col(1) = u.dt;
     }
-    //Vt_R.row(0).col(2) = u.v * cos(u.dt * u.w + rob_f0.xphi);
-    //Vt_R.row(1).col(2) = u.v * sin(u.dt * u.w + rob_f0.xphi);
-    //Vt_R.row(2).col(2) = u.w;
     ///----ROBOT JACOBIANS
 
     //////INPUT NOISE ----
@@ -92,7 +89,6 @@ void KalmanSLDM::predict_rob(RState  rob_f0, KInp u, Mat& Gt_R, Mat& Q){
     Mat M = Mat::zeros(input_param , input_param, CV_64F);
     M.row(0).col(0) = rob_alfa_1 * sqr(v_noise) + rob_alfa_2 * sqr(w_noise);
     M.row(1).col(1) = rob_alfa_3 * sqr(v_noise) + rob_alfa_4 * sqr(w_noise);
-    M.row(2).col(2) = 0.0        * sqr(u.dt);
 
     Mat(Vt_R * M * Vt_R.t()).copyTo(Q.rowRange(0,rob_param).colRange(0,rob_param));
     ///----INPUT NOISE
@@ -110,9 +106,11 @@ void KalmanSLDM::predict_obj(KInp u, Mat& Gt, Mat& Q){
         S.row(i_min + 5) += obj_f0.aphi * u.dt;
 
         double v_r = sqrt( sqr(obj_f0.vx + obj_f0.ax * u.dt) + sqr(obj_f0.vy + obj_f0.ay * u.dt) );
-        double noise_gain = fmax(obj_alfa_xy / 10.0, obj_alfa_xy/*normal value*/ * sqr(v_r * 1.0));//HARDCODED
 
-           Gt_Oi(u.dt) .copyTo(Gt.rowRange(i_min, i_min + obj_param).colRange(i_min, i_min + obj_param));
+        double noise_gain = obj_alfa_xy_min + (obj_alfa_xy_max - obj_alfa_xy_min) * v_r / obj_alfa_max_vel;//COST FUNCTION
+
+        Gt_Oi(u.dt) .copyTo(Gt.rowRange(i_min, i_min + obj_param).colRange(i_min, i_min + obj_param));
+
         Mat(Q_Oi(noise_gain, obj_alfa_phi, u.dt)).copyTo(Q .rowRange(i_min, i_min + obj_param).colRange(i_min, i_min + obj_param));
 
         //cout<<"Vt_Oi_OO="<<endl<<" "<<Vt_Oi_OO<<endl<<endl;

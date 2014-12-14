@@ -7,7 +7,6 @@ class NeighData;
 
 class ObjMat{
 public:
-
     int i_min;
     cv::Mat S_O;
     cv::Mat P_OO;
@@ -45,7 +44,7 @@ public:
 private:
     static const int rob_param   = 3;
     static const int obj_param   = 9;
-    static const int input_param = 3;
+    static const int input_param = 2;
     static const int z_param     = 3;
 
     double  v_static;
@@ -62,7 +61,7 @@ private:
     cv::Mat P_old;
 
     //kalman_base ---
-    int  assign_unique_id();
+    int  assign_unique_obj_id();
     void update_sub_mat();
     bool add_obj(ObjectDataPtr seg, KObjZ kObjZ);
     bool rmv_obj(ObjectDataPtr seg);
@@ -99,9 +98,13 @@ private:
     double&   rob_alfa_2;
     double&   rob_alfa_3;
     double&   rob_alfa_4;
-    double&   obj_alfa_xy;
+    double&   obj_alfa_xy_min;
+    double&   obj_alfa_xy_max;
+    double&   obj_alfa_max_vel;
     double&   obj_alfa_phi;
+    double&   obj_init_pow_dt;
     double&   obj_timeout;
+    double&   discard_old_seg_perc;
 
     SensorTf& tf_sns;
 };

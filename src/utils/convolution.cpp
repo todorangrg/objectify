@@ -19,7 +19,8 @@ Convolution::Convolution(RecfgParam &_param):
     ang_var_thres(_param.convol_ang_var_thres),
     sqr_err_thres(_param.convol_sqr_err_thres),
     p_no_perc_thres(_param.convol_p_no_perc_thres),
-    score_thres(_param.convol_score_thres){}
+    score_thres(_param.convol_score_thres),
+    noise_ang_base(_param.convol_noise_ang_base){}
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
@@ -261,7 +262,7 @@ void Convolution::compute_tf_ANG_VAR(boost::shared_ptr<ConvolInfo> input){
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
-
+//COST FUNCTION
 double Convolution::snap_score(boost::shared_ptr<ConvolInfo> input, bool _SVD){//used by SVD-snapp mode ; 1 = perfect match, 0.0 = no match
     double err_score, occl_score, com_d_score, rot_score;
     if(_SVD){ err_score = (1.0 - input->sqr_err / sqr_err_thres);            }                         //best case = 1.0 , worst case < 0.0
@@ -285,7 +286,7 @@ double Convolution::snap_score(boost::shared_ptr<ConvolInfo> input, bool _SVD){/
 //                                                                 ( (1 - occl_score ) *
 //                                                                   sqr(1 - com_d_score)*
 //                                                                   sqr(1 - rot_score  )));
-    double score = err_score * ( sqr(sqr(1.0 - occl_score))  * sqr(1.0 - com_d_score) * sqr(1.0 - rot_score ));//COST FUNCTION
+    double score = err_score * ( sqr(sqr(1.0 - occl_score))  * sqr(1.0 - com_d_score) * sqr(1.0 - rot_score ));
     return score;
 }
 
@@ -430,11 +431,12 @@ void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){
                       cov_xy                , g_y_inv.getVariance(), 0      ,
                       0                     , 0                     , var_rot);
 
-    cv::Matx33d Base_noise = cv::Matx33d::eye() * (sqr(2.0 * sample_dist) );//HARDCODED
-    Base_noise(2,2) = 0.00001 ;//HARDCODED
+    cv::Matx33d Base_noise = cv::Matx33d::eye() * (sqr(2.0 * sample_dist) );//COST FUNCTION
+    Base_noise(2,2) = noise_ang_base;
     double len_noise_scale = (g_len.getMean() * sample_dist) / len_max;//COST FUNCTION
     Q  = (Q  + Base_noise) * (1.0 / len_noise_scale);
     Qi = (Qi + Base_noise) * (1.0 / len_noise_scale);
+
     TfVar tf_var    (com    , xy(g_x    .getMean(), g_y    .getMean()), T , Q , g_len.getMean());
     TfVar tf_var_inv(com_inv, xy(g_x_inv.getMean(), g_y_inv.getMean()), Ti, Qi, g_len.getMean());
 

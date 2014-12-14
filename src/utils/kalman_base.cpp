@@ -13,9 +13,13 @@ KalmanSLDM::KalmanSLDM(RecfgParam& _param, SensorTf& _tf_sns) :
     rob_alfa_2(_param.kalman_rob_alfa_2),
     rob_alfa_3(_param.kalman_rob_alfa_3),
     rob_alfa_4(_param.kalman_rob_alfa_4),
-    obj_alfa_xy(_param.kalman_obj_alfa_xy),
+    obj_alfa_xy_min(_param.kalman_obj_alfa_xy_min),
+    obj_alfa_xy_max(_param.kalman_obj_alfa_xy_max),
+    obj_alfa_max_vel(_param.kalman_obj_alfa_max_vel),
     obj_alfa_phi(_param.kalman_obj_alfa_phi),
-    obj_timeout(_param.kalman_obj_timeout){}
+    obj_init_pow_dt(_param.kalman_obj_init_pow_dt),
+    obj_timeout(_param.kalman_obj_timeout),
+    discard_old_seg_perc(_param.kalman_discard_old_seg_perc){}
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
@@ -95,14 +99,13 @@ bool KalmanSLDM::add_obj(ObjectDataPtr seg, KObjZ kObjZ){
                                 sin(tf_sns.getPhi()) * (   tf_sns.getXY().y * cos(rob_bar_f0.xphi) + tf_sns.getXY().x * sin(rob_bar_f0.xphi));;
 
     Mat P_OO_V(9, 9, CV_64F, 0.);
-    double init_cov = 0.00001;//3;//HARDCODED
 
 //    Mat Gt_hinv_Z (obj_param, z_param, CV_64F, 0.);
 //    Gt_hinv_Z.row(0).col(0) = cos(rob_bar_f0.xphi); Gt_hinv_Z.row(0).col(1) = - sin(rob_bar_f0.xphi);
 //    Gt_hinv_Z.row(1).col(0) = sin(rob_bar_f0.xphi); Gt_hinv_Z.row(1).col(1) =   cos(rob_bar_f0.xphi);
 //    Gt_hinv_Z.row(2).col(2) = 1.;
 
-    Q_Oi(obj_alfa_xy, obj_alfa_phi, init_cov).copyTo(P_OO_V);
+    Q_Oi(obj_alfa_xy_min, obj_alfa_phi, obj_init_pow_dt).copyTo(P_OO_V);
 
     Mat(Gt_hinv_R * P.rowRange(0, rob_param).colRange(0, rob_param) * Gt_hinv_R.t()  + P_OO_V/*Gt_hinv_Z * Mat(kObjZ.Q)  * Gt_hinv_Z.t()*/).copyTo(Oi[seg].P_OO);
 
@@ -185,7 +188,7 @@ cv::Mat KalmanSLDM::Fxi(ObjectDataPtr seg){
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-int KalmanSLDM::assign_unique_id(){
+int KalmanSLDM::assign_unique_obj_id(){
     const int max_no_obj = 50;
     bool ids[max_no_obj];
     for(std::map<ObjectDataPtr, ObjMat>::iterator oi = Oi.begin(); oi != Oi.end(); oi++){

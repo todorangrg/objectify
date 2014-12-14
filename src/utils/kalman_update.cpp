@@ -83,8 +83,6 @@ void KalmanSLDM::update_Oi(ObjectDataPtr seg, KObjZ kObjZ){
     double obj_angle = h_diff.at<double>(2);
     h_diff.row(2) = normalizeAngle(obj_angle);
 
-    //cout<<"S="<<endl<<" "<<S<<endl<<endl;
-
     Mat Kt = P * Ht.t() * ( Ht * P * Ht.t() + Q ).inv();                ///KALMAN GAIN
     Mat(S + Kt * ( h_diff )).copyTo(S);                    ///STATE UPDATE
     Mat((cv::Mat::eye(P.rows, P.cols, CV_64F) - Kt * Ht) * P).copyTo(P);///COVARIANCE UPDATE

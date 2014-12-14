@@ -132,14 +132,19 @@ void DataProcessingNode::callbackParameters (objectify::objectify_paramConfig &c
     param.convol_ang_var_thres            = config.convol_ang_var_thres;
     param.convol_sqr_err_thres            = config.convol_sqr_err_thres;
     param.convol_p_no_perc_thres          = config.convol_p_no_perc_thres / 100.0;
+    param.convol_noise_ang_base           = config.convol_noise_ang_base;
 
     param.kalman_rob_alfa_1               = config.kalman_rob_alfa_1;
     param.kalman_rob_alfa_2               = config.kalman_rob_alfa_2;
     param.kalman_rob_alfa_3               = config.kalman_rob_alfa_3;
     param.kalman_rob_alfa_4               = config.kalman_rob_alfa_4;
-    param.kalman_obj_alfa_xy              = config.kalman_obj_alfa_xy;
+    param.kalman_obj_alfa_xy_min          = config.kalman_obj_alfa_xy_min;
+    param.kalman_obj_alfa_xy_max          = config.kalman_obj_alfa_xy_max;
+    param.kalman_obj_alfa_max_vel         = config.kalman_obj_alfa_max_vel;
     param.kalman_obj_alfa_phi             = config.kalman_obj_alfa_phi;
+    param.kalman_obj_init_pow_dt          = config.kalman_obj_init_pow_dt;
     param.kalman_obj_timeout              = config.kalman_obj_timeout;
+    param.kalman_discard_old_seg_perc     = config.kalman_discard_old_seg_perc;
 
     if( frame2frame = config.sim_pause ){
         if( frame2frame_switch_old != config.sim_step ){ frame2frame_callback = true; }

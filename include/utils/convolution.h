@@ -98,6 +98,7 @@ private:
     double& score_thres;
     bool&   full_search;
     bool&   SVD;
+    double& noise_ang_base;
 };
 
 #endif //CONVOLUTION_H

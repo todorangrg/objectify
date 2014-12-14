@@ -144,14 +144,19 @@ public:
     double convol_sqr_err_thres;
     double convol_p_no_perc_thres;
     double convol_score_thres;
+    double convol_noise_ang_base;
 
     double kalman_rob_alfa_1;
     double kalman_rob_alfa_2;
     double kalman_rob_alfa_3;
     double kalman_rob_alfa_4;
-    double kalman_obj_alfa_xy;
+    double kalman_obj_alfa_xy_min;
+    double kalman_obj_alfa_xy_max;
+    double kalman_obj_alfa_max_vel;
     double kalman_obj_alfa_phi;
+    double kalman_obj_init_pow_dt;
     double kalman_obj_timeout;
+    double kalman_discard_old_seg_perc;
 
     std::list<double> smooth_mask;
     void init_normal_smooth_mask();
@@ -401,7 +406,7 @@ public:
     //Constructors & Destructors
     SegmentData(int _id)                                         : SegmentDataBase(                           _id){}
     SegmentData(ObjectDataPtr _obj, int _id)                     : SegmentDataBase(_obj             ,         _id){}
-    SegmentData(ObjectDataPtr _obj, int _id, SegmentDataPtr _seg): SegmentDataBase(_obj             ,         _id,    _seg->com,    _seg->len){}
+    SegmentData(ObjectDataPtr _obj, SegmentDataPtr _seg)         : SegmentDataBase(_obj             ,    _seg->id,    _seg->com,    _seg->len){}
     SegmentData(SegmentDataPtrVectorIter _seg)                   : SegmentDataBase((*_seg)->getObj(), (*_seg)->id, (*_seg)->com, (*_seg)->len){}
     SegmentData(SegmentDataPtrVectorIter _seg, int _id)          : SegmentDataBase((*_seg)->getObj(),         _id, (*_seg)->com, (*_seg)->len){}
     SegmentData(SegmentDataPtr           _seg         )          : SegmentDataBase(   _seg->getObj(),    _seg->id,    _seg->com,    _seg->len){}
