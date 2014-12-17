@@ -173,10 +173,14 @@ void PlotData::plot_segm_tf(const SegmentDataExtPtrVectorPtr &data, int frame, c
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void PlotData::plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k){
+void PlotData::plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k, cv::Scalar col_cov_v){
     if((!data)||(!k.pos_init)){ return; }
 
-    putArrow(w2i(0,0),w2i(k.S.at<double>(0,0) - k.S_bar.at<double>(0,0), k.S.at<double>(1,0) - k.S_bar.at<double>(1,0)),magenta,2);
+    xy pose_corr(k.S.at<double>(0,0) - k.S_bar.at<double>(0,0), k.S.at<double>(1,0) - k.S_bar.at<double>(1,0));
+    putFullCircle(w2i(xy(0,0)),1,3,col_cov_v);
+    if(sqrt(sqr(pose_corr.x) + sqr(pose_corr.y) ) > 0.01){
+        putArrow(w2i(0,0),w2i(pose_corr),col_cov_v,2);
+    }
 
     cv::Matx33d Mw2i33(Mw2i);
     cv::Matx22d Mw2i22(Mw2i33(0,0),Mw2i33(0,1),Mw2i33(1,0),Mw2i33(1,1));
@@ -192,7 +196,7 @@ void PlotData::plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k){
     cov_xy22 = Mw2i22 * rot_rob_bar * cov_xy22 *rot_rob_bar.t() * Mw2i22.t();
 
     cv::RotatedRect ellips = cov2rect(cov_xy22,w2i(k.S.at<double>(0,0) - rob_bar_xx_f0,k.S.at<double>(1,0) - rob_bar_xy_f0));
-    cv::ellipse(plot,ellips,magenta,2);
+    cv::ellipse(plot,ellips,col_cov_v,2);
 
     for(int i=0; i< data->size(); i++){
         xy com  =  data->at(i)->getCom();
@@ -200,7 +204,11 @@ void PlotData::plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k){
         if( k.Oi.count(obj) != 0 ){
             xy v(k.Oi[obj].S_O.at<double>(3,0),k.Oi[obj].S_O.at<double>(4,0));double w = k.Oi[obj].S_O.at<double>(5,0);
             v = rot_rob_bar * v;
-            putArrow(w2i(tf_sns.s2r(com)),w2i(tf_sns.s2r(com + xy(v.x,v.y))),magenta,2);
+
+            putFullCircle(w2i(tf_sns.s2r(com)),1,3,col_cov_v);
+            if(sqrt(sqr(v.x) + sqr(v.y) ) > k.no_upd_vel_hard0){
+                putArrow(w2i(tf_sns.s2r(com)),w2i(tf_sns.s2r(com + xy(v.x,v.y))),col_cov_v,2);
+            }
 
             Mw2i22 = cv::Matx22d(Mw2i33(0,0),Mw2i33(0,1),Mw2i33(1,0),Mw2i33(1,1));
             cov_xy33 = cv::Matx33d(k.Oi[obj].P_OO.rowRange(3,6).colRange(3,6));
@@ -210,7 +218,7 @@ void PlotData::plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k){
             cov_xy22 = Mw2i22 * rot_rob_bar * cov_xy22 * rot_rob_bar.t() * Mw2i22.t();
 
             ellips = cov2rect(cov_xy22,w2i(tf_sns.s2r(com + xy(v.x,v.y))));
-            cv::ellipse(plot,ellips,magenta,2);
+            cv::ellipse(plot,ellips,col_cov_v,2);
         }
     }
 }

@@ -24,21 +24,21 @@ Segmentation::Segmentation(RecfgParam &_param, SensorTf& _tf_sns, PlotData& _plo
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void Segmentation::plot_data(InputData &input, KalmanSLDM k){
+void Segmentation::plot_data(InputData &input, KalmanSLDM k, cv::Scalar col_seg_oi, cv::Scalar col_seg_oe, cv::Scalar col_seg_ni, cv::Scalar col_seg_ne){
     if(plot_data_segm_init){
         if(k.seg_init){
-            plot.plot_segm(k.seg_init    , plot.blue_dark);
+            plot.plot_segm(k.seg_init    , col_seg_oi);
         }
         if(input.seg_init){
-            plot.plot_segm(input.seg_init, plot.red_dark );
+            plot.plot_segm(input.seg_init, col_seg_ni);
         }
     }
     if(plot_data_segm_ext){
         if(k.seg_ext){
-            plot.plot_segm(k.seg_ext    , plot.blue);
+            plot.plot_segm(k.seg_ext    , col_seg_oe);
         }
         if(input.seg_ext){
-            plot.plot_segm(input.seg_ext, plot.red);
+            plot.plot_segm(input.seg_ext, col_seg_ne);
         }
     }
 }
@@ -87,7 +87,10 @@ void Segmentation::run(InputData &input, KalmanSLDM &k, bool advance){
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-bool ang_sort_func    (SegmentDataPtr i, SegmentDataPtr j) { return (i->p.front().angle    < j->p.front().angle ); }
+bool ang_sort_func    (SegmentDataPtr i, SegmentDataPtr j) {
+    double ang_i = i->p.front().angle;
+    double ang_j = j->p.front().angle;
+    return (normalizeAngle(ang_i) < normalizeAngle(ang_j)); }
 
 void Segmentation::sort_seg_init(SegmentDataPtrVectorPtr &segments_init){
     std::sort(segments_init->begin(), segments_init->end(), ang_sort_func);

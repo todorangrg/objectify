@@ -2,6 +2,7 @@
 #define KALMAN_H
 #include "opencv/cv.h"
 #include "utils/base_classes.h"
+#include "visual/plot_world.h"
 
 class NeighData;
 
@@ -14,8 +15,14 @@ public:
 
 class KalmanSLDM{
 public:
+    PlotWorld plotw;
+
 
     bool pos_init;
+
+    rosbag::Bag &bag;
+    std::string bag_file_n;
+    double&   no_upd_vel_hard0;
 
     SegmentDataPtrVectorPtr    seg_init;
     SegmentDataExtPtrVectorPtr seg_ext;
@@ -24,6 +31,9 @@ public:
     cv::Mat S;
     cv::Mat S_bar;
     cv::Mat P;
+
+    RState rob_real;
+    RState rob_odom;
 
     void init      (RState rob_x);
     void prediction(SegmentDataPtrVectorPtr &input, KInp &u);
@@ -39,7 +49,7 @@ public:
     RState rob_x_old(){return RState(S_old);}
 
     //Constructors & Destructors
-    KalmanSLDM(RecfgParam& _param, SensorTf& _tf_sns);
+    KalmanSLDM(RecfgParam& _param, SensorTf& _tf_sns, rosbag::Bag &bag);
     ~KalmanSLDM(){}
 private:
     static const int rob_param   = 3;
@@ -88,9 +98,10 @@ private:
                                  std::map<SegmentDataExtPtr, std::vector<NeighDataExt > > & neigh_data_ne);
     void propagate_no_update_obj(std::map <SegmentDataPtr  , std::vector<NeighDataInit> > & neigh_data_oi,
                                  std::map <SegmentDataPtr  , std::vector<NeighDataInit> > & neigh_data_ni, double _dt);
-    bool compute_avg_miu_sigma(std::vector<CorrInput> & list_comm, KObjZ & avg);
+    bool compute_avg_miu_sigma(std::vector<CorrInput> & list_comm, KObjZ & avg, xy &avg_com);
     void propag_extr_p_clouds (std::vector<CorrInput> & list_comm, std::map<ObjectDataPtr  , ObjMat>::iterator                        oi);
-    void add_new_obj          (SegmentDataPtrVectorPtr & input   , std::map <SegmentDataPtr, std::vector<NeighDataInit> >& neigh_data_ni);
+    void add_new_obj          (SegmentDataPtrVectorPtr & input   , std::map <SegmentDataPtr   , std::vector<NeighDataInit> >& neigh_data_ni
+                                                                 , std::map <SegmentDataExtPtr, std::vector<NeighDataExt>  >& neigh_data_ne);
     void remove_lost_obj();
     // ---kalman_update
 
@@ -105,7 +116,7 @@ private:
     double&   obj_init_pow_dt;
     double&   obj_timeout;
     double&   discard_old_seg_perc;
-    double&   no_upd_vel_hard0;
+
 
     SensorTf& tf_sns;
 };

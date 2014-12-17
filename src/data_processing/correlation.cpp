@@ -102,7 +102,11 @@ void Correlation::run_conv(InputData &input, KalmanSLDM k){
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 void Correlation::plot_all_data(InputData &input, KalmanSLDM k, cv::Scalar color_old, cv::Scalar color_new){
-    print_neigh_list(FRAME_OLD);
+    if(k.seg_ext){
+        if(k.seg_ext->size() > 0){
+            print_neigh_list(FRAME_OLD);
+        }
+    }
     print_neigh_list(FRAME_NEW);
     if(!input.is_valid){
         return;
@@ -426,7 +430,8 @@ void Correlation::print_neigh_list(FrameStatus fr_status){
     it_seg_old = neigh_data_init[fr_status].end();
     while(k < neigh_data_init[fr_status].size()){
         it_seg = neigh_data_init[fr_status].begin();
-        if(k>0){while((it_seg->first->id <= it_seg_old->first->id)){ it_seg++; if(it_seg == neigh_data_init[fr_status].end()){break;}}}
+        bool reach_end = false;
+        if(k>0){while((it_seg->first->id <= it_seg_old->first->id)){ it_seg++; if(it_seg == neigh_data_init[fr_status].end()){reach_end = true; break;}}}
         for(std::map <SegmentDataPtr, std::vector<NeighDataInit> >::iterator it_seg_s = it_seg;it_seg_s != neigh_data_init[fr_status].end();it_seg_s++){
             if(k > 0){
                 if((it_seg_s->first->id > it_seg_old->first->id)&&(it_seg->first->id > it_seg_s->first->id)){
@@ -440,6 +445,7 @@ void Correlation::print_neigh_list(FrameStatus fr_status){
         }
         it_seg_old = it_seg;
         k++;
+        if(reach_end){continue; }
     //////////////////////////////////////////////////////////////////////////////////////very very bad sorted extraction ^^
 
         ss<<print_segment(*it_seg->first);
@@ -473,7 +479,9 @@ void Correlation::print_neigh_list(FrameStatus fr_status){
     it_seg_old_e = neigh_data_ext[fr_status].end();
     while(k < neigh_data_ext[fr_status].size()){
         it_seg_e = neigh_data_ext[fr_status].begin();
-        if(k>0){while((it_seg_e->first->id <= it_seg_old_e->first->id)){ it_seg_e++; if(it_seg_e == neigh_data_ext[fr_status].end()){break;}}}
+        bool reach_end = false;
+        if(k>0){while((it_seg_e->first->id <= it_seg_old_e->first->id)){ it_seg_e++; if(it_seg_e == neigh_data_ext[fr_status].end()){reach_end = true; break;}}}
+
         for(std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >::iterator it_seg_s = it_seg_e;it_seg_s != neigh_data_ext[fr_status].end();it_seg_s++){
             if(k > 0){
                 if((it_seg_s->first->id > it_seg_old_e->first->id)&&(it_seg_e->first->id > it_seg_s->first->id)){
@@ -487,6 +495,7 @@ void Correlation::print_neigh_list(FrameStatus fr_status){
         }
         it_seg_old_e = it_seg_e;
         k++;
+        if(reach_end){continue; }
     //////////////////////////////////////////////////////////////////////////////////////very very bad sorted extraction ^^
 
         ss<<print_segment(*it_seg_e->first);

@@ -22,7 +22,7 @@ public:
     void run(bool new_frame);
 
     //Constructors & Destructors
-    DataProcessing(RecfgParam& param, SensorTf& _tf_sns, PlotData& plot,PlotConv& plot_conv );
+    DataProcessing(RecfgParam& param, SensorTf& _tf_sns, PlotData& plot, PlotConv& plot_conv , rosbag::Bag &bag);
     ~DataProcessing(){}
 protected:
 

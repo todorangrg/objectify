@@ -28,12 +28,12 @@ OiState::OiState(cv::Mat _S_O):
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 ///TODO DISCARD AND USE TF LIBRARY
-void SensorTf::init() {
-    cv::Mat_<double> R = (cv::Mat_<double>(3,3) <<  1, 0, 0,
-                                                    0, 1, 0,
-                                                    0, 0, 1);    // Rotate
-    cv::Mat_<double> T = (cv::Mat_<double>(3,3) <<  1, 0, 0.225,
-                                                    0, 1, 0,
+void SensorTf::init(xy trans, double rot) {
+    cv::Mat_<double> R = (cv::Mat_<double>(3,3) <<  cos(rot),  - sin(rot), 0,
+                                                    sin(rot),    cos(rot), 0,
+                                                    0,                  0, 1);    // Rotate
+    cv::Mat_<double> T = (cv::Mat_<double>(3,3) <<  1, 0, trans.x,
+                                                    0, 1, trans.y,
                                                     0, 0, 1);    // Translate
 
     // Calculate final transformation matrix

@@ -40,7 +40,7 @@ public:
     void callbackParameters ( objectify::objectify_paramConfig &config , uint32_t level );
 
     //Constructors & Destructors
-    DataProcessingNode( ros::NodeHandle & n, RecfgParam& param, SensorTf& sns_tf, PlotData& plot, PlotConv& plot_conv   );
+    DataProcessingNode( ros::NodeHandle & n, RecfgParam& param, SensorTf& sns_tf, PlotData& plot, PlotConv& plot_conv, rosbag::Bag & bag);
     ~DataProcessingNode(){}
 private:
 

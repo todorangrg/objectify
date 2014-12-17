@@ -274,7 +274,8 @@ double Convolution::snap_score(boost::shared_ptr<ConvolInfo> input, bool _SVD){/
     double ref_pos   = conv_data[CONV_REF]->seg->len_init_pos / sample_dist;
     double spl_neg   = conv_data[CONV_SPL]->seg->len_init_neg / sample_dist;
     double spl_pos   = conv_data[CONV_SPL]->seg->len_init_pos / sample_dist;
-    double init_snap_len = fmax(0,fmin(ref_neg, spl_neg + shift_neg)) + fmax(0,fmin(ref_pos, spl_pos + shift_pos));
+    double init_snap_len = 0.;
+    init_snap_len = fmax(0,fmin(ref_neg, spl_neg + shift_neg)) + fmax(0,fmin(ref_pos, spl_pos + shift_pos));
     occl_score  = (1.0 - (input->pair_no + 1.0 * init_snap_len) / (double)conv_data[CONV_REF]->p_cd->size()) / p_no_perc_thres;//best case = 0.0 , worst case > 1.0
     com_d_score = input->com_dr / com_dr_max;                                                          //best case = 0.0 , worst case > 1.0
     rot_score   = fabs(input->ang_distr.getMean() / ang_mean_thres);                                   //best case = 0.0 , worst case > 1.0
@@ -282,11 +283,11 @@ double Convolution::snap_score(boost::shared_ptr<ConvolInfo> input, bool _SVD){/
     if(( err_score < 0.0)||(occl_score > 1.0)||(com_d_score > 1.0)||(rot_score > 1.0)){
         return 0.0;
     }
-//    double score = err_score - fmin(err_score, (1 - err_score) *
-//                                                                 ( (1 - occl_score ) *
-//                                                                   sqr(1 - com_d_score)*
-//                                                                   sqr(1 - rot_score  )));
-    double score = err_score * ( sqr(sqr(1.0 - occl_score))  * sqr(1.0 - com_d_score) * sqr(1.0 - rot_score ));
+    double score = err_score - fmin(err_score, (1 - err_score) *
+                                                                 ( (1 - occl_score ) *
+                                                                   sqr(1 - com_d_score)*
+                                                                   sqr(1 - rot_score  )));
+//    double score = err_score * ( sqr(sqr(1.0 - occl_score))  * sqr(1.0 - com_d_score) * sqr(1.0 - rot_score ));
     return score;
 }
 

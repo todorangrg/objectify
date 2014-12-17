@@ -9,6 +9,8 @@
 #include "opencv/cv.h"
 #include "utils/math.h"
 
+#include "rosbag/bag.h"
+
 class PointData;
 class PointDataSample;
 class SegmentData;
@@ -128,6 +130,10 @@ public:
     int  viz_correl_queue_no;
     int  viz_convol_step_no;
 
+    bool viz_world;
+    bool viz_world_grid;
+    double viz_world_len;
+
     bool convol_SVD;
 
     double convol_sample_dist;//SHOULD BE VARIABLE WITH OBJECT INFORMATION
@@ -235,7 +241,8 @@ private:
 class SensorTf{///TODO DISCARD AND USE TF LIBRARY
 public:
 
-    void init();
+    void init(xy trans, double rot);
+    void init(){init(xy(0.16,0),0);}
     xy     getXY() {return    xy(Ms2r.at<double>(0,2), Ms2r.at<double>(1,2));}
     double getPhi(){return atan2(Ms2r.at<double>(1,0), Ms2r.at<double>(0,0));}
     xy s2r(double _x, double _y);
@@ -358,9 +365,10 @@ public:
 
     int  id;
     bool solved;
+    double life_time;
 
     //Constructors & Destructors
-    ObjectData(int _id): id(_id), solved(true){}
+    ObjectData(int _id): id(_id), solved(true), life_time(0){}
     ~ObjectData(){}
 };
 

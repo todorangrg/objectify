@@ -3,6 +3,9 @@
 #include "visual/plot.h"
 #include "math.h"
 
+#include <geometry_msgs/TwistStamped.h>
+
+
 using namespace cv;
 using namespace std;
 
@@ -13,15 +16,42 @@ using namespace std;
 void KalmanSLDM::advance(InputData &input, bool advance){
     if(!pos_init){return; }
     if(advance){
+
+
         input.u.dt = (input.time_stamp - time_stamp).toSec();
         if(input.u.v != input.u.v){ input.u.v = 0; }// NaN stuff
         if(input.u.w != input.u.w){ input.u.w = 0; }
 
         update_sub_mat();
+        double ang_norm = S.at<double>(2);
+        S.row(2) = normalizeAngle(ang_norm);
         S_old       = Mat(S.rows, S.cols, CV_64F); S.copyTo(S_old);//storing a copy of actual state matrices
         P_old       = Mat(P.rows, P.cols, CV_64F); P.copyTo(P_old);
         Oi_old      = Oi;                                          //storing a copy of actual object map
         SegCopy(seg_init, seg_init_old);                           //storing a copy of actual kalman seg_init
+
+        geometry_msgs::TwistStamped real_pose;
+        real_pose.twist.linear.x  = rob_real.xx; real_pose.twist.linear.y  = rob_real.xy; real_pose.twist.angular.z = rob_real.xphi;
+        geometry_msgs::TwistStamped odometry_pose;
+        double dx, dy, da;
+        if(fabs(input.u.w) > 0.001) {
+            dx = (- input.u.v/input.u.w * sin(rob_odom.xphi) + input.u.v/input.u.w * sin(rob_odom.xphi + input.u.w * input.u.dt));
+            dy = (+ input.u.v/input.u.w * cos(rob_odom.xphi) - input.u.v/input.u.w * cos(rob_odom.xphi + input.u.w * input.u.dt));
+            da = input.u.w * input.u.dt;
+        } else {
+            dx = input.u.v  * input.u.dt  * cos(rob_odom.xphi);
+            dy = input.u.v  * input.u.dt  * sin(rob_odom.xphi);
+            da = 0.0;
+        } rob_odom.xx += dx; rob_odom.xy += dy; rob_odom.xphi += normalizeAngle(da);
+        odometry_pose.twist.linear.x  = rob_odom.xx; odometry_pose.twist.linear.y  = rob_odom.xy; odometry_pose.twist.angular.z = rob_odom.xphi;
+        geometry_msgs::TwistStamped filtered_pose;
+        filtered_pose.twist.linear.x  = S.at<double>(0); filtered_pose.twist.linear.y  = S.at<double>(1); filtered_pose.twist.angular.z = S.at<double>(2);
+
+        if(bag.getMode() == rosbag::bagmode::Write){
+            bag.write("real", ros::Time::now(), real_pose);
+            bag.write("odom", ros::Time::now(), odometry_pose);
+            bag.write("filt", ros::Time::now(), filtered_pose);
+        }
     }
     else{
         S       = Mat(S_old.rows, S_old.cols, CV_64F); S_old.copyTo(S);
@@ -67,8 +97,9 @@ void KalmanSLDM::run(InputData &input,
             }
 
             KObjZ upd_data;//update the stuff
-            if(compute_avg_miu_sigma(list_comm, upd_data)){
-                init_Oi  (oi->first, xy(0,0), input.u.dt);
+            xy avg_com;
+            if(compute_avg_miu_sigma(list_comm, upd_data, avg_com)){
+                init_Oi  (oi->first, avg_com, input.u.dt);
                 update_Oi(oi->first, upd_data);
             }
 
@@ -77,11 +108,13 @@ void KalmanSLDM::run(InputData &input,
         }
     }
 
-    add_new_obj(input.seg_init, neigh_data_ni);
-
     remove_lost_obj();
 
     propagate_no_update_obj(neigh_data_oi, neigh_data_ni, input.u.dt);
+
+    add_new_obj(input.seg_init, neigh_data_ni, neigh_data_ne);
+
+
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -99,10 +132,10 @@ void KalmanSLDM::propagate_no_update_obj(std::map <SegmentDataPtr, std::vector<N
 
         bool ask_continue = false; bool put_new = false;
         for(std::vector<NeighDataInit>::iterator it_neigh = s_oi->second.begin(); it_neigh != s_oi->second.end(); it_neigh++){
-            if(it_neigh->neigh->solved){ ask_continue = true; break; }
-            if((s_oi->second.size() == 1)&&  //HARDCODED
-               (s_oi->first->getLen() > it_neigh->neigh->getLen() + 0.01)){ put_new = false; }
-            else                                                          { put_new = true;  }
+            if(it_neigh->neigh->solved){ ask_continue = true; break; }//skip if it has neighbours that have been done
+            if(/*(s_oi->second.size() == 1)&&*/  //HARDCODED
+               (it_neigh->neigh->getLen() > 0.4)){ put_new = true;  }
+            else                                 { put_new = false; }
         }
         if(ask_continue){ continue; }
         //else propagate
@@ -145,12 +178,22 @@ void KalmanSLDM::remove_lost_obj(){
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
-//adds new objects the segments that have no neighbours
-void KalmanSLDM::add_new_obj(SegmentDataPtrVectorPtr & inp_seg_init, std::map <SegmentDataPtr, std::vector<NeighDataInit> >& neigh_data_ni){
+//adds new objects the segments that have no neighbours or neighbours that have allready tf
+void KalmanSLDM::add_new_obj(SegmentDataPtrVectorPtr & inp_seg_init, std::map <SegmentDataPtr, std::vector<NeighDataInit> >& neigh_data_ni, std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >& neigh_data_ne){
     if(!inp_seg_init){ return; }
     //search in all new init segments
     for(SegmentDataPtrVectorIter s_ne =  inp_seg_init->begin(); s_ne != inp_seg_init->end(); s_ne ++){
-        if(((*s_ne)->solved)||(neigh_data_ni[*s_ne].size() > 0)){ continue; }// if not solved yet or has no neighbours, initialize as new objects and propagate point clouds
+        if((*s_ne)->solved){ continue; }// if not solved yet or has no neighbours, initialize as new objects and propagate point clouds
+        if(neigh_data_ni[*s_ne].size() > 0){
+            bool drop = false;
+            for(std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >::iterator s_nee = neigh_data_ne.begin(); s_nee != neigh_data_ne.end(); s_nee++){
+                if(s_nee->first->getParrent() != *s_ne){ continue; }
+                for(std::vector<NeighDataExt>::iterator s_ne_nei = s_nee->second.begin(); s_ne_nei != s_nee->second.end(); s_ne_nei++){
+                    if(!(*s_ne_nei).has_tf){ drop = true; break; }
+                }
+            }
+            if(drop){ continue; }
+        }
         (*s_ne)->solved = true;
         seg_init->push_back(SegmentDataPtr(new  SegmentData(ObjectDataPtr(new ObjectData(assign_unique_obj_id())), (*s_ne))));
         for(PointDataVectorIter pp = (*s_ne)->p.begin(); pp != (*s_ne)->p.end(); pp++){
@@ -179,8 +222,8 @@ void KalmanSLDM::propag_extr_p_clouds(std::vector<CorrInput> & list_comm, std::m
         SegmentDataPtr s_insert; bool p_tf = false;
         if((parrent_seg_unique)&&
            (entry->frame_old->getParrent()->getLen() > entry->frame_new->getParrent()->getLen() + 0.01)&&
-           (entry->frame_new->conv->tf->front().tf.len / (double)entry->frame_new->conv->p_cd->size()
-                                          > discard_old_seg_perc)){ s_insert = entry->frame_old->getParrent(); p_tf = true; }
+           ((entry->frame_new->conv->tf->front().tf.len / (double)entry->frame_new->conv->p_cd->size()
+                                          > discard_old_seg_perc)||(entry->frame_new->getLen() < 0.4))){ s_insert = entry->frame_old->getParrent(); p_tf = true; }
         else                                                      { s_insert = entry->frame_new->getParrent();              }
         //search if the segment to be propagated was not propagated already
         bool found = false;
@@ -204,11 +247,13 @@ void KalmanSLDM::propag_extr_p_clouds(std::vector<CorrInput> & list_comm, std::m
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-bool KalmanSLDM::compute_avg_miu_sigma(std::vector<CorrInput> & list_comm, KObjZ &avg){
+bool KalmanSLDM::compute_avg_miu_sigma(std::vector<CorrInput> & list_comm, KObjZ &avg, xy & avg_com){
     Mat P_oi_avg(z_param - 1, z_param - 1, CV_64F, 0.);
     Mat S_oi_avg(z_param - 1,           1, CV_64F, 0.);
     Gauss ang_avg_cos;
     Gauss ang_avg_sin;
+    Gauss result_com_x;
+    Gauss result_com_y;
 
     if(list_comm.size() == 0){ return false; }
 
@@ -224,6 +269,8 @@ bool KalmanSLDM::compute_avg_miu_sigma(std::vector<CorrInput> & list_comm, KObjZ
         miu.row(1) = tf.tf.com_tf.y;//tf_com.y - tf.tf.com.y;
         ang_avg_cos.add_w_sample(tf.tf.T(0,0), exp(- tf.tf.Q(2,2) / 2.0) );
         ang_avg_sin.add_w_sample(tf.tf.T(1,0), exp(- tf.tf.Q(2,2) / 2.0) );
+        result_com_x.add_w_sample(tf.tf.com.x, tf.tf.len);/////
+        result_com_y.add_w_sample(tf.tf.com.y, tf.tf.len);/////
 
         Mat sig(z_param - 1, z_param - 1, CV_64F, 0.);
         Mat Qm(tf.tf.Q);
@@ -234,8 +281,12 @@ bool KalmanSLDM::compute_avg_miu_sigma(std::vector<CorrInput> & list_comm, KObjZ
     }
     if(list_comm.size() > 1)    { P_oi_avg = P_oi_avg.inv(DECOMP_SVD);       S_oi_avg = P_oi_avg * S_oi_avg;                  }
 
+    avg_com     = xy(result_com_x.getMean(), result_com_y.getMean());
     avg.pos.x   = S_oi_avg.at<double>(0);
     avg.pos.y   = S_oi_avg.at<double>(1);
+
+
+
     avg.phi     = atan2(ang_avg_sin.getMean(), ang_avg_cos.getMean());
     avg.Q       = cv::Matx33d(P_oi_avg.at<double>(0,0), P_oi_avg.at<double>(0,1), 0,
                               P_oi_avg.at<double>(1,0), P_oi_avg.at<double>(1,1), 0,
@@ -243,7 +294,8 @@ bool KalmanSLDM::compute_avg_miu_sigma(std::vector<CorrInput> & list_comm, KObjZ
     cv::Matx33d T(ang_avg_cos.getMean(), - ang_avg_sin.getMean(),         0,
                   ang_avg_sin.getMean(),   ang_avg_cos.getMean(),         0,
                                       0,                       0,         1);
-    for(std::vector<CorrInput>::iterator entry = list_comm.begin(); entry != list_comm.end(); entry++){
+    std::cout<<"angle_tf_hat"<<avg.phi<<std::endl;
+    for(std::vector<CorrInput>::iterator entry = list_comm.begin(); entry != list_comm.end(); entry++){//correct the tf-s
         TFdata tf;
         for(std::vector<TFdata>::iterator tf_it = entry->frame_old->conv->tf->begin(); tf_it != entry->frame_old->conv->tf->end(); tf_it++){//extract the needed tf
             if(tf_it->seg == entry->frame_new){
@@ -257,6 +309,8 @@ bool KalmanSLDM::compute_avg_miu_sigma(std::vector<CorrInput> & list_comm, KObjZ
             }
         }
     }
+    avg.pos    += avg_com;
+
     return true;
 }
 

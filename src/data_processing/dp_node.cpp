@@ -6,7 +6,13 @@
 #include "utils/math.h"
 #include "visual/plot_data.h"
 
+#include <rosbag/bag.h>
+
 int main( int argc , char **argv ) {
+
+    //debug
+    rosbag::Bag bag;
+
 
     ros::init( argc , argv , "obj" );
     ros::NodeHandle n;
@@ -14,9 +20,13 @@ int main( int argc , char **argv ) {
     SensorTf sensor_tf;
     PlotData  plot_data("Object_tracking_visualization",dyn_param, sensor_tf);
     PlotConv  plot_conv("Convolution_visualization",dyn_param);
-    DataProcessingNode dp(n, dyn_param, sensor_tf, plot_data,plot_conv);
+    DataProcessingNode dp(n, dyn_param, sensor_tf, plot_data,plot_conv, bag);
     dp.frame2frame_callback = false;
     ros::Time t0 = ros::Time::now();
+
+
+
+
 
     while ( ros::ok() ) {
         ros::Rate rate( dp.sleep_freq );
@@ -53,8 +63,8 @@ int main( int argc , char **argv ) {
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-DataProcessingNode::DataProcessingNode( ros::NodeHandle & n, RecfgParam& param, SensorTf& sns_tf, PlotData& plot, PlotConv& plot_conv ):
-        DataProcessing( param, sns_tf, plot,plot_conv ), n_( n ),
+DataProcessingNode::DataProcessingNode(ros::NodeHandle & n, RecfgParam& param, SensorTf& sns_tf, PlotData& plot, PlotConv& plot_conv , rosbag::Bag &bag):
+        DataProcessing( param, sns_tf, plot,plot_conv, bag ), n_( n ),
         odom_sub ( n , "/r1/odom"            , 10 ),/*base_pose_ground_truth*/
         laser_sub( n , "/r1/front_laser/scan", 10 ),/*base_scan*/
         sleep_freq(10),
@@ -76,6 +86,7 @@ void DataProcessingNode::callback_odom_laser(const nav_msgs::OdometryConstPtr &_
     //new_data= true;  
     RState stateOdom(_odom->pose.pose.position.x, _odom->pose.pose.position.y, quaternion2Angle2D(_odom->pose.pose.orientation));
     if(!k.pos_init){ k.init(stateOdom); }
+
 
     PointDataVectorPtr laser_raw_now( new PointDataVector );
 
@@ -100,6 +111,8 @@ void DataProcessingNode::callback_odom_laser(const nav_msgs::OdometryConstPtr &_
     param.cb_sensor_point_angl_inc=_laser->angle_increment;
     param.cb_sensor_point_angl_max=_laser->angle_max;
     param.cb_sensor_point_angl_min=_laser->angle_min;
+
+    k.rob_real = stateOdom;
 }
 
 /** converts a quaternion to a rotation matrix : http://en.wikipedia.org/wiki/Rotation_matrix#Quaternion
@@ -150,6 +163,10 @@ void DataProcessingNode::callbackParameters (objectify::objectify_paramConfig &c
     param.viz_convol_normals              = config.viz_convol_normals;
     param.viz_convol_tf                   = config.viz_convol_tf;
     param.viz_convol_tf_ref2spl           = config.viz_convol_tf_ref2spl;
+
+    param.viz_world                       = config.viz_world;
+    param.viz_world_grid                  = config.viz_world_grid;
+    param.viz_world_len                   = config.viz_world_len;
 
     param.preproc_filter                  = config.preproc_filter;
     param.preproc_filter_circle_rad       = config.preproc_filter_circle_rad;

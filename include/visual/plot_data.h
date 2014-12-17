@@ -19,14 +19,12 @@ public:
     template <class SegData>
     void plot_segm        (boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &data, cv::Scalar color);
 
-
-    void plot_segm_init   (SegmentDataPtrVectorPtr &data, cv::Scalar color);
     void plot_corr_links  (const std::vector<CorrInput>& list , cv::Scalar color_o2n,cv::Scalar color_n2o);
     void plot_oult_circles(const std::vector<cv::RotatedRect>& plot_p_ell, std::vector<int>& plot_p_ell_erased, cv::Scalar color_acc,cv::Scalar color_rej);
 
     void plot_segm_tf(const SegmentDataExtPtrVectorPtr &data, int frame, cv::Scalar color);
 
-    void plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k);
+    void plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k, cv::Scalar col_cov_v);
 
     //Constructors & Destructors
     PlotData(std::string wndView,RecfgParam &_param, SensorTf& _tf_sns);

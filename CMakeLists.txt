@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   stage_simulation
   message_filters
   dynamic_reconfigure 
+  rosbag
 )
 
 
@@ -142,6 +143,7 @@ target_link_libraries(${ALIAS}_utils_lib
 add_library(${ALIAS}_visual_lib 
   src/visual/plot.cpp 
   src/visual/plot_data.cpp
+  src/visual/plot_world.cpp
   src/visual/plot_convolution.cpp
   ${VIS_HEADERS}
 )

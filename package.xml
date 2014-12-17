@@ -48,6 +48,9 @@
   <build_depend>stage_simulation</build_depend>
   <build_depend>message_filters</build_depend>
   <build_depend>dynamic_reconfigure</build_depend> 
+  <build_depend>rosbag</build_depend>
+  
+  
   <run_depend>geometry_msgs</run_depend>
   <run_depend>nav_msgs</run_depend>
   <run_depend>opencv2</run_depend>
@@ -56,6 +59,7 @@
   <run_depend>stage_simulation</run_depend>
   <run_depend>message_filters</run_depend>
   <run_depend>dynamic_reconfigure</run_depend> 
+  <run_depend>rosbag</run_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

@@ -4,10 +4,10 @@
 
 using namespace cv;
 
-DataProcessing::DataProcessing(RecfgParam& param,SensorTf& _tf_sns,PlotData& plot,PlotConv& plot_conv) :
+DataProcessing::DataProcessing(RecfgParam& param,SensorTf& _tf_sns,PlotData& plot,PlotConv& plot_conv , rosbag::Bag &bag) :
     param(param),
     preprocessing(param,plot),
-    k(param, _tf_sns),
+    k(param, _tf_sns, bag),
     segmentation(param,_tf_sns, plot, k),
     correlation(param,plot,plot_conv),
     tf_sns(_tf_sns),
@@ -45,7 +45,7 @@ void DataProcessing::run(bool new_frame){
     info.str(""); info<<"[ms]Segment run time      = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot.putInfoText(info,0,plot.black);//does not freeze value in step sim mode
 
     t0 = ros::Time::now();
-    segmentation .plot_data(input, k);
+    segmentation .plot_data(input, k, plot.seg_oi, plot.seg_oe, plot.seg_ni, plot.seg_ne);
     info.str(""); info<<"[ms]Segment plot run time = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot.putInfoText(info,0,plot.black);//does not freeze value in step sim mod
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     t0 = ros::Time::now();
@@ -53,7 +53,7 @@ void DataProcessing::run(bool new_frame){
     info.str(""); info<<"[ms]Innov run time        = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot.putInfoText(info,0,plot.black);//does not freeze value in step sim mode
 
     t0 = ros::Time::now();
-    correlation   .plot_all_data(input, k ,plot.blue_bright,plot.orange);
+    correlation   .plot_all_data(input, k , plot.seg_o2n, plot.seg_n2o);
     info.str(""); info<<"[ms]Innov plot run time   = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot.putInfoText(info,0,plot.black);//does not freeze value in step sim mode
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     t0 = ros::Time::now();
@@ -61,9 +61,11 @@ void DataProcessing::run(bool new_frame){
     info.str(""); info<<"[ms]Kalman run time       = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot.putInfoText(info,0,plot.black);//does not freeze value in step sim mode
 
     t0 = ros::Time::now();
-    plot.plot_kalman(k.seg_init,k);
+    plot.plot_kalman(k.seg_init,k, plot.cov_v);
     info.str(""); info<<"[ms]Kalman plot run time  = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot.putInfoText(info,0,plot.black);//does not freeze value in step sim mod
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    k.plotw.update();
 }
 
 /////------------------------------------------------------------------------------------------------------------------------------------------------///

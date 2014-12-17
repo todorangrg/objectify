@@ -19,7 +19,7 @@ class Segmentation{
 public:
 
     void run(InputData& input, KalmanSLDM &k, bool advance);
-    void plot_data(InputData& input,KalmanSLDM k);
+    void plot_data(InputData& input, KalmanSLDM k, cv::Scalar col_seg_oi, cv::Scalar col_seg_oe, cv::Scalar col_seg_ni, cv::Scalar col_seg_ne);
 
     //Constructors & Destructors
     Segmentation(RecfgParam &_param, SensorTf& _tf_sns, PlotData& _plot,KalmanSLDM& _k);

@@ -7,7 +7,9 @@ using namespace std;
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-KalmanSLDM::KalmanSLDM(RecfgParam& _param, SensorTf& _tf_sns) :
+KalmanSLDM::KalmanSLDM(RecfgParam& _param, SensorTf& _tf_sns , rosbag::Bag &_bag) :
+    plotw("World View", _param, _tf_sns, *this),
+    bag(_bag),
     tf_sns              (_tf_sns),
     rob_alfa_1          (_param.kalman_rob_alfa_1),
     rob_alfa_2          (_param.kalman_rob_alfa_2),
@@ -23,7 +25,8 @@ KalmanSLDM::KalmanSLDM(RecfgParam& _param, SensorTf& _tf_sns) :
     no_upd_vel_hard0    (_param.kalman_no_upd_vel_hard0),
     v_static            (0),
     w_static            (0),
-    pos_init            (false){
+    pos_init            (false),
+    bag_file_n("LocalizationTest"){
 
     seg_init     = SegmentDataPtrVectorPtr(new SegmentDataPtrVector);
     seg_init_old = SegmentDataPtrVectorPtr(new SegmentDataPtrVector);
@@ -32,7 +35,7 @@ KalmanSLDM::KalmanSLDM(RecfgParam& _param, SensorTf& _tf_sns) :
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 void KalmanSLDM::init(RState rob_x){
-
+    rob_odom = rob_x;
     pos_init = true;
     S.release(); S_bar.release(); P.release();;
     Oi.clear();
