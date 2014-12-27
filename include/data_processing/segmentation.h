@@ -19,11 +19,19 @@ class Segmentation{
 public:
 
     void run(InputData& input, KalmanSLDM &k, bool advance);
+    void run_future(SegmentDataPtrVectorPtr & seg_init, SegmentDataExtPtrVectorPtr & seg_ext_now, SegmentDataExtPtrVectorPtr & seg_ext_ftr, FrameTf & tf);
+
+
     void plot_data(InputData& input, KalmanSLDM k, cv::Scalar col_seg_oi, cv::Scalar col_seg_oe, cv::Scalar col_seg_ni, cv::Scalar col_seg_ne);
 
     //Constructors & Destructors
     Segmentation(RecfgParam &_param, SensorTf& _tf_sns, PlotData& _plot,KalmanSLDM& _k);
     ~Segmentation(){}
+
+
+    double& sensor_range_max;
+    double& angle_max;
+    double& angle_min;
 private:
 
     bool in_range(polar p);
@@ -41,14 +49,17 @@ private:
     void check_neigh_p     (const SegmentDataExtPtrVectorPtr &_input, SegmentDataExtPtrVectorPtr &_temp,
                                        std::vector<bool> &temp_valid, IteratorIndexSet<SegmentDataExt> iis);
 
-    template <class SegData> void calc_tf      (boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &_input, TFmode tf_mode );
+    template <class SegData> void calc_tf      (boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &_input, TFmode tf_mode, FrameTf _tf_frm);
     template <class SegData> void split_com_len(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &_input, bool old_init);
 
+
+    void bloat_image(SegmentDataExtPtrVectorPtr &_input, double radius);
+
+
     //Parameters, plot & debug
-    double& sensor_range_max;
+
     double& angle_inc;
-    double& angle_max;
-    double& angle_min;
+
     double& segm_discont_dist;
 
     static const int min_seg_dist = 0.2;

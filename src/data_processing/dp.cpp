@@ -10,6 +10,7 @@ DataProcessing::DataProcessing(RecfgParam& param,SensorTf& _tf_sns,PlotData& plo
     k(param, _tf_sns, bag),
     segmentation(param,_tf_sns, plot, k),
     correlation(param,plot,plot_conv),
+    planner(param,_tf_sns,k, segmentation),
     tf_sns(_tf_sns),
     plot(plot){}
 
@@ -61,11 +62,15 @@ void DataProcessing::run(bool new_frame){
     info.str(""); info<<"[ms]Kalman run time       = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot.putInfoText(info,0,plot.black);//does not freeze value in step sim mode
 
     t0 = ros::Time::now();
-    plot.plot_kalman(k.seg_init,k, plot.cov_v);
+    plot.plot_kalman(k.seg_init,k, plot.cov_v, plot.cov_x);
     info.str(""); info<<"[ms]Kalman plot run time  = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot.putInfoText(info,0,plot.black);//does not freeze value in step sim mod
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    t0 = ros::Time::now();
+    planner.run(0.0);
+    info.str(""); info<<"[ms]Planner run time      = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot.putInfoText(info,0,plot.black);//does not freeze value in step sim mode
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    k.plotw.update();
+
+    plot.plot_segm(planner.seg_ext_now, plot.black);
+    k.plotw.plot_t_bug(planner.d_followed_fin, planner.o_followed_fin, planner.dir_followed_fin, planner.target, to_polar(planner.full_potential));
 }
-
-/////------------------------------------------------------------------------------------------------------------------------------------------------///

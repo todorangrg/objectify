@@ -9,6 +9,7 @@
 #include "data_processing/correlation.h"
 #include "visual/plot_data.h"
 #include "utils/kalman.h"
+#include "planner/planner.h"
 
 class DataProcessing{
 public:
@@ -18,6 +19,7 @@ public:
     Segmentation  segmentation;
     Correlation   correlation;
     KalmanSLDM    k;
+    TangentBug    planner;
 
     void run(bool new_frame);
 

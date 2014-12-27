@@ -7,6 +7,37 @@ using namespace std;
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
+void KalmanSLDM::update_rob(KInp u){
+    Mat h_bar(input_param, 1, CV_64F, 0.0);
+    h_bar.row(0) = S.at<double>(3);
+    h_bar.row(1) = S.at<double>(4);
+    Mat h_hat(input_param, 1, CV_64F, 0.0);
+    h_hat.row(0) = u.v;
+    h_hat.row(1) = u.w;
+
+    Mat Ht(input_param, rob_param + Oi.size() * obj_param, CV_64F, 0.);
+    Ht.row(0).col(3) = 1.;
+    Ht.row(1).col(4) = 1.;
+
+
+    Mat M = Mat::zeros(input_param , input_param, CV_64F);
+    M.row(0).col(0) = rob_ualfa_1 * sqr(u.v) + rob_ualfa_2 * sqr(u.w) + rob_ualfa_base_v;
+    M.row(1).col(1) = rob_ualfa_3 * sqr(u.v) + rob_ualfa_4 * sqr(u.w) + rob_ualfa_base_w;
+
+
+
+    Mat Kt = P * Ht.t() * ( Ht * P * Ht.t() + M ).inv();                ///KALMAN GAIN
+    Mat(S + Kt * ( h_hat - h_bar )).copyTo(S);                          ///STATE UPDATE
+    Mat((cv::Mat::eye(P.rows, P.cols, CV_64F) - Kt * Ht) * P).copyTo(P);///COVARIANCE UPDATE
+
+//    std::cout<<"v="<<S.at<double>(3)<<", w="<<S.at<double>(4)<<std::endl;
+
+//    cout<<"Kt="       <<endl<<" "<<Kt                              <<endl<<endl;
+//    cout<<"P="<<endl<<" "<<P<<endl<<endl;
+}
+
+///------------------------------------------------------------------------------------------------------------------------------------------------///
+
 void KalmanSLDM::init_Oi(ObjectDataPtr obj, xy obj_com_bar_f1, double dt){
     RState rob_bar_f0(S);
     if(Oi.count(obj) == 0){ return; }
@@ -48,6 +79,8 @@ void KalmanSLDM::update_Oi(ObjectDataPtr seg, KObjZ kObjZ){
                       sin(tf_sns.getPhi()) * ( + tf_sns.getXY().x - (tf_sns.getXY().x - rob_bar_f0.xx) * cos(rob_bar_f0.xphi) -
                                                                     (tf_sns.getXY().y - rob_bar_f0.xy) * sin(rob_bar_f0.xphi));
     h_bar_f1.row(2) =  obj_bar_f0.xphi ;//- rob_bar_f0.xphi;
+
+
     ///----PREDICTED OBSERVATION
 
     ///PREDICTED OBSERVATION JACOBIAN AND NOISE----
@@ -57,7 +90,7 @@ void KalmanSLDM::update_Oi(ObjectDataPtr seg, KObjZ kObjZ){
     Ht_low.row(0).col(1) = - sin(rob_bar_f0.xphi) * cos(tf_sns.getPhi()) - cos(rob_bar_f0.xphi) * sin(tf_sns.getPhi());
     Ht_low.row(1).col(0) =   cos(rob_bar_f0.xphi) * sin(tf_sns.getPhi()) + sin(rob_bar_f0.xphi) * cos(tf_sns.getPhi());
     Ht_low.row(1).col(1) = - cos(rob_bar_f0.xphi) * cos(tf_sns.getPhi()) + sin(rob_bar_f0.xphi) * sin(tf_sns.getPhi());
-    Ht_low.row(2).col(2) = 0.;//- 1.;
+    Ht_low.row(2).col(2) = - 1.;
 
     Ht_low.row(0).col(2) =    cos(rob_bar_f0.xphi) * obj_bar_f0.xy -
                               sin(rob_bar_f0.xphi) * obj_bar_f0.xx +
@@ -68,9 +101,9 @@ void KalmanSLDM::update_Oi(ObjectDataPtr seg, KObjZ kObjZ){
                               cos(tf_sns.getPhi()) * ( - (tf_sns.getXY().x - rob_bar_f0.xx) * cos(rob_bar_f0.xphi) - (tf_sns.getXY().y - rob_bar_f0.xy) * sin(rob_bar_f0.xphi)) +
                               sin(tf_sns.getPhi()) * ( - (tf_sns.getXY().y - rob_bar_f0.xy) * cos(rob_bar_f0.xphi) + (tf_sns.getXY().x - rob_bar_f0.xx) * sin(rob_bar_f0.xphi));
 
-    Ht_low.row(0).col(3) =   cos(rob_bar_f0.xphi); Ht_low.row(0).col(4) = sin(rob_bar_f0.xphi);
-    Ht_low.row(1).col(3) = - sin(rob_bar_f0.xphi); Ht_low.row(1).col(4) = cos(rob_bar_f0.xphi) ;
-    Ht_low.row(2).col(5) =  1.;
+    Ht_low.row(0).col(5) =   cos(rob_bar_f0.xphi); Ht_low.row(0).col(6) = sin(rob_bar_f0.xphi);
+    Ht_low.row(1).col(5) = - sin(rob_bar_f0.xphi); Ht_low.row(1).col(6) = cos(rob_bar_f0.xphi) ;
+    Ht_low.row(2).col(7) =  1.;
 
     Mat Ht = Ht_low * Fxi(seg);
 
@@ -82,12 +115,12 @@ void KalmanSLDM::update_Oi(ObjectDataPtr seg, KObjZ kObjZ){
     Mat h_diff = h_hat_f1 - h_bar_f1;
     double obj_angle = h_diff.at<double>(2);
     h_diff.row(2) = normalizeAngle(obj_angle);
-    cout<<"----------------"<<endl;
-    cout<<"angle_hat"<<h_hat_f1.at<double>(2)<<endl;
-    cout<<"angle_bar"<<h_bar_f1.at<double>(2)<<endl;
-    cout<<"angle_diff"<<h_diff.at<double>(2)<<endl;
+//    cout<<"----------------"<<endl;
+//    cout<<"angle_hat"<<h_hat_f1.at<double>(2)<<endl;
+//    cout<<"angle_bar"<<h_bar_f1.at<double>(2)<<endl;
+//    cout<<"angle_diff"<<h_diff.at<double>(2)<<endl;
 
-    Mat Kt = P * Ht.t() * ( Ht * P * Ht.t() + Q ).inv();///KALMAN GAIN
+    Mat Kt = P * Ht.t() * ( Ht * P * Ht.t() + Q ).inv(DECOMP_SVD);///KALMAN GAIN
     Mat(S + Kt * ( h_diff )).copyTo(S);                    ///STATE UPDATE
     Mat((cv::Mat::eye(P.rows, P.cols, CV_64F) - Kt * Ht) * P).copyTo(P);///COVARIANCE UPDATE
 

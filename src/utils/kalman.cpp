@@ -22,6 +22,11 @@ void KalmanSLDM::advance(InputData &input, bool advance){
         if(input.u.v != input.u.v){ input.u.v = 0; }// NaN stuff
         if(input.u.w != input.u.w){ input.u.w = 0; }
 
+
+        //update_rob(input.u);
+
+
+
         update_sub_mat();
         double ang_norm = S.at<double>(2);
         S.row(2) = normalizeAngle(ang_norm);
@@ -30,6 +35,7 @@ void KalmanSLDM::advance(InputData &input, bool advance){
         Oi_old      = Oi;                                          //storing a copy of actual object map
         SegCopy(seg_init, seg_init_old);                           //storing a copy of actual kalman seg_init
 
+        /////////////////////////////////////////////////////////BAG
         geometry_msgs::TwistStamped real_pose;
         real_pose.twist.linear.x  = rob_real.xx; real_pose.twist.linear.y  = rob_real.xy; real_pose.twist.angular.z = rob_real.xphi;
         geometry_msgs::TwistStamped odometry_pose;
@@ -47,11 +53,21 @@ void KalmanSLDM::advance(InputData &input, bool advance){
         geometry_msgs::TwistStamped filtered_pose;
         filtered_pose.twist.linear.x  = S.at<double>(0); filtered_pose.twist.linear.y  = S.at<double>(1); filtered_pose.twist.angular.z = S.at<double>(2);
 
-        if(bag.getMode() == rosbag::bagmode::Write){
+        geometry_msgs::TwistStamped vel_input;
+        vel_input.twist.angular.x = input.u.v;
+        vel_input.twist.angular.z = input.u.w;
+        geometry_msgs::TwistStamped vel_state;
+        vel_state.twist.angular.x = S.at<double>(3);
+        vel_state.twist.angular.z = S.at<double>(4);
+
+        if(bag.getFileName().compare("") != 0){
             bag.write("real", ros::Time::now(), real_pose);
             bag.write("odom", ros::Time::now(), odometry_pose);
             bag.write("filt", ros::Time::now(), filtered_pose);
+            bag.write("vel_odom", ros::Time::now(), vel_input);
+            bag.write("vel_stat", ros::Time::now(), vel_state);
         }
+        /////////////////////////////////////////////////////////BAG
     }
     else{
         S       = Mat(S_old.rows, S_old.cols, CV_64F); S_old.copyTo(S);
@@ -114,6 +130,7 @@ void KalmanSLDM::run(InputData &input,
 
     add_new_obj(input.seg_init, neigh_data_ni, neigh_data_ne);
 
+    update_rob(input.u);
 
 }
 
@@ -294,7 +311,7 @@ bool KalmanSLDM::compute_avg_miu_sigma(std::vector<CorrInput> & list_comm, KObjZ
     cv::Matx33d T(ang_avg_cos.getMean(), - ang_avg_sin.getMean(),         0,
                   ang_avg_sin.getMean(),   ang_avg_cos.getMean(),         0,
                                       0,                       0,         1);
-    std::cout<<"angle_tf_hat"<<avg.phi<<std::endl;
+    //std::cout<<"angle_tf_hat"<<avg.phi<<std::endl;
     for(std::vector<CorrInput>::iterator entry = list_comm.begin(); entry != list_comm.end(); entry++){//correct the tf-s
         TFdata tf;
         for(std::vector<TFdata>::iterator tf_it = entry->frame_old->conv->tf->begin(); tf_it != entry->frame_old->conv->tf->end(); tf_it++){//extract the needed tf

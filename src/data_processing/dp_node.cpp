@@ -24,10 +24,6 @@ int main( int argc , char **argv ) {
     dp.frame2frame_callback = false;
     ros::Time t0 = ros::Time::now();
 
-
-
-
-
     while ( ros::ok() ) {
         ros::Rate rate( dp.sleep_freq );
         t0 = ros::Time::now();
@@ -41,13 +37,21 @@ int main( int argc , char **argv ) {
         dp.k.time_stamp = dp.input.time_stamp;
         dp.new_data = false;
 
-        std::stringstream info; info.str(""); info<<"[ms]Full cycle busy time  = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot_data.putInfoText(info,0,plot_data.black);//does not freeze value in step sim mode
-
         plot_data.update();
         plot_conv.update();
+        dp.k.plotw.update();
+
+        std::stringstream info; info.str(""); info<<"[ms]Full cycle busy time  = "<<(ros::Time::now() - t0).toNSec()* 1e-6; plot_data.putInfoText(info,0,plot_data.black);//does not freeze value in step sim mode
 
         bool update = ( dp.frame2frame && dp.frame2frame_callback ) || ( !dp.frame2frame );
         if(update){
+
+            geometry_msgs::Twist cmd;
+
+
+            cmd.linear.x = dp.planner.cmd_vel.v; cmd.linear.y = 0.; cmd.angular.z = dp.planner.cmd_vel.w; /// creates motion command
+            dp.pub_cmd_.publish(cmd);                                                                     /// publishes motion command
+
             dp.frame2frame_callback = false; dp.new_data = true;
             dp.unpause_gazebo.call(dp.empty_srv);
             rate.sleep();
@@ -67,6 +71,7 @@ DataProcessingNode::DataProcessingNode(ros::NodeHandle & n, RecfgParam& param, S
         DataProcessing( param, sns_tf, plot,plot_conv, bag ), n_( n ),
         odom_sub ( n , "/r1/odom"            , 10 ),/*base_pose_ground_truth*/
         laser_sub( n , "/r1/front_laser/scan", 10 ),/*base_scan*/
+
         sleep_freq(10),
         sync( MySyncPolicy( 10 ) , odom_sub , laser_sub ),
         new_data(false){
@@ -77,6 +82,8 @@ DataProcessingNode::DataProcessingNode(ros::NodeHandle & n, RecfgParam& param, S
 
     pause_gazebo  =  n.serviceClient<std_srvs::Empty>("gazebo/pause_physics");
     unpause_gazebo = n.serviceClient<std_srvs::Empty>("gazebo/unpause_physics");
+
+    pub_cmd_ = n.advertise<geometry_msgs::Twist>("r1/cmd_vel", 1);
     //unpause_gazebo.call(empty_srv);
 }
 
@@ -104,8 +111,8 @@ void DataProcessingNode::callback_odom_laser(const nav_msgs::OdometryConstPtr &_
     Distributions noise;
     if(fabs(vel.v) < 0.01){ vel.v = 0.; }
     if(fabs(vel.w) < 0.01){ vel.w = 0.; }
-    vel.v += noise.normalDist(0, sim_rob_alfa_1 * sqr(vel.v) + sim_rob_alfa_2 * sqr(vel.w));
-    vel.w += noise.normalDist(0, sim_rob_alfa_3 * sqr(vel.v) + sim_rob_alfa_4 * sqr(vel.w));//noising the input
+    vel.v += noise.normalDist(0, sim_rob_alfa_1 * vel.v + sim_rob_alfa_2 * vel.w);
+    vel.w += noise.normalDist(0, sim_rob_alfa_3 * vel.v + sim_rob_alfa_4 * vel.w);//noising the input
 
     callback_odom_laser_data = InputData(laser_raw_now, stateOdom, vel, _odom->header.stamp.now());
     param.cb_sensor_point_angl_inc=_laser->angle_increment;
@@ -201,6 +208,16 @@ void DataProcessingNode::callbackParameters (objectify::objectify_paramConfig &c
     param.kalman_rob_alfa_2               = config.kalman_rob_alfa_2;
     param.kalman_rob_alfa_3               = config.kalman_rob_alfa_3;
     param.kalman_rob_alfa_4               = config.kalman_rob_alfa_4;
+    param.kalman_rob_alfa_base_v          = config.kalman_rob_alfa_base_v;
+    param.kalman_rob_alfa_base_w          = config.kalman_rob_alfa_base_w;
+
+    param.kalman_rob_ualfa_1              = config.kalman_rob_ualfa_1;
+    param.kalman_rob_ualfa_2              = config.kalman_rob_ualfa_2;
+    param.kalman_rob_ualfa_3              = config.kalman_rob_ualfa_3;
+    param.kalman_rob_ualfa_4              = config.kalman_rob_ualfa_4;
+    param.kalman_rob_ualfa_base_v         = config.kalman_rob_ualfa_base_v;
+    param.kalman_rob_ualfa_base_w         = config.kalman_rob_ualfa_base_w;
+
     param.kalman_obj_alfa_xy_min          = config.kalman_obj_alfa_xy_min;
     param.kalman_obj_alfa_xy_max          = config.kalman_obj_alfa_xy_max;
     param.kalman_obj_alfa_max_vel         = config.kalman_obj_alfa_max_vel;

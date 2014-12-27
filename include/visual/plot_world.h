@@ -26,6 +26,8 @@ public:
     template <class SegData>
     void plot_kalman(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > _input, cv::Scalar col_cov_x, cv::Scalar col_cov_v);
 
+    void plot_t_bug(double d_followed, ObjectDataPtr o_followed, int dir_followed, polar target_p, polar potential);
+
     //Constructors & Destructors
     PlotWorld(std::string wndView, RecfgParam &_param, SensorTf& _tf_sns, KalmanSLDM &_k);
     ~PlotWorld(){}
@@ -40,6 +42,7 @@ private:
     xy          view_center;
     KalmanSLDM& k;
     ObjColor    o_col[5];
+    double      writing_to_bag;
 
     static void mouseCallBackWorld(int evt, int c, int r, int flags, void *param );
 };

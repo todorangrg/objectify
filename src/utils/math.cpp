@@ -82,6 +82,12 @@ xy get_line_inters(Line l,xy p){
     return xy( (l.b*(l.b*p.x-l.a*p.y)-l.a*l.c)/(sqr(l.a)+sqr(l.b)), (l.a*(-l.b*p.x+l.a*p.y)-l.b*l.c)/(sqr(l.a)+sqr(l.b)));
 }
 
+double get_dist_p(Line l,xy p0, xy* p_d){
+    *p_d = xy((l.b * (   l.b * p0.x - l.a * p0.y) - l.a * l.c) / (sqr(l.a) + sqr(l.b)),
+              (l.a * ( - l.b * p0.x + l.a * p0.y) - l.b * l.c) / (sqr(l.a) + sqr(l.b)));
+    return fabs(l.a * p0.x + l.b * p0.y + l.c) / sqrt(sqr(l.a) + sqr(l.b));
+}
+
 xy get_line_inters(Line l1,Line l2){
     double x=10000,y=10000;
     if(l1.a*l2.b!=l1.b*l2.a){

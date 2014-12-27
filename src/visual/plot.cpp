@@ -73,7 +73,7 @@ Point Plot::w2i(double _x, double _y) {
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 xy Plot::i2w(double _x, double _y) {
-    Mat_<double> pw = (Mat_<double>(3,1) << _x, _y, 1.0);
+    Mat_<double> pw = (Mat_<double>(3,1) << _x, _y, 1.0 / Mi2w(2,2)/*1.0*/);
     Mat_<double> pi = Mi2w * pw;
     return  xy (pi(0,0), pi(1,0));
 }

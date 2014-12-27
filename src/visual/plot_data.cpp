@@ -173,7 +173,7 @@ void PlotData::plot_segm_tf(const SegmentDataExtPtrVectorPtr &data, int frame, c
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void PlotData::plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k, cv::Scalar col_cov_v){
+void PlotData::plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k, cv::Scalar col_cov_v, cv::Scalar col_cov_x){
     if((!data)||(!k.pos_init)){ return; }
 
     xy pose_corr(k.S.at<double>(0,0) - k.S_bar.at<double>(0,0), k.S.at<double>(1,0) - k.S_bar.at<double>(1,0));
@@ -196,7 +196,7 @@ void PlotData::plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k, c
     cov_xy22 = Mw2i22 * rot_rob_bar * cov_xy22 *rot_rob_bar.t() * Mw2i22.t();
 
     cv::RotatedRect ellips = cov2rect(cov_xy22,w2i(k.S.at<double>(0,0) - rob_bar_xx_f0,k.S.at<double>(1,0) - rob_bar_xy_f0));
-    cv::ellipse(plot,ellips,col_cov_v,2);
+    cv::ellipse(plot,ellips,col_cov_x,2);
 
     for(int i=0; i< data->size(); i++){
         xy com  =  data->at(i)->getCom();

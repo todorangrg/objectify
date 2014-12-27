@@ -42,6 +42,26 @@ void Segmentation::plot_data(InputData &input, KalmanSLDM k, cv::Scalar col_seg_
         }
     }
 }
+void Segmentation::run_future(SegmentDataPtrVectorPtr & seg_init, SegmentDataExtPtrVectorPtr & seg_ext_now, SegmentDataExtPtrVectorPtr & seg_ext_ftr, FrameTf & tf){
+    sort_seg_init     (seg_init);
+    split_com_len     (seg_init,          false);
+
+    assign_seg_ext    (seg_init   , seg_ext_now);
+    split_for_occl    (seg_ext_now);
+    bloat_image       (seg_ext_now, 0.3);
+//    calc_occlusion    (seg_ext_now,     IN_SEG );//
+//    calc_occlusion    (seg_ext_now,     IN_ALL );//
+//    sample_const_angle(seg_ext_now);
+//    erase_img_outl    (seg_ext_now);
+//    split_com_len     (seg_ext_now,       false);
+    SegCopy           (seg_ext_now, seg_ext_ftr);
+
+    calc_tf           (seg_ext_ftr,     OLD2NEW, tf);
+//    calc_occlusion    (seg_ext_ftr,     IN_ALL );//
+//    sample_const_angle(seg_ext_ftr);
+//    erase_img_outl    (seg_ext_ftr);
+//    split_com_len     (seg_ext_ftr,       false);
+}
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
@@ -59,12 +79,12 @@ void Segmentation::run(InputData &input, KalmanSLDM &k, bool advance){
     split_com_len  (input.seg_init,      false);
 
     assign_seg_ext    (input.seg_init, input.seg_ext);
-    calc_tf           (input.seg_ext , NEW2OLD);
+    calc_tf           (input.seg_ext , NEW2OLD, tf_frm);
     calc_occlusion    (input.seg_ext , IN_ALL );
     sample_const_angle(input.seg_ext );
     erase_img_outl    (input.seg_ext );
     split_com_len     (input.seg_ext,    false);
-    calc_tf           (input.seg_ext , OLD2NEW);
+    calc_tf           (input.seg_ext , OLD2NEW, tf_frm);
     sample_const_angle(input.seg_ext );
     split_com_len     (input.seg_ext,    false);
     link_init_ext     (input.seg_ext );
@@ -74,10 +94,10 @@ void Segmentation::run(InputData &input, KalmanSLDM &k, bool advance){
     split_com_len     (k.seg_init,     true);
 
     assign_seg_ext    (k.seg_init, k.seg_ext);
-    calc_tf           (k.seg_init,  OLD2NEW);
+    calc_tf           (k.seg_init,  OLD2NEW, tf_frm);
     split_for_occl    (k.seg_ext );
     calc_occlusion    (k.seg_ext ,  IN_SEG );
-    calc_tf           (k.seg_ext ,  OLD2NEW);
+    calc_tf           (k.seg_ext ,  OLD2NEW, tf_frm);
     calc_occlusion    (k.seg_ext ,  IN_ALL );
     sample_const_angle(k.seg_ext );
     erase_img_outl    (k.seg_ext );
@@ -151,15 +171,15 @@ void Segmentation::assign_seg_ext(const SegmentDataPtrVectorPtr &input, SegmentD
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 template <class SegData>
-void Segmentation::calc_tf(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &input, TFmode tf_mode ){
+void Segmentation::calc_tf(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &input, TFmode tf_mode , FrameTf _tf_frm){
     for(typename std::vector<boost::shared_ptr<SegData> >::iterator ss = input->begin(); ss != input->end(); ss++){
         for(PointDataVectorIter pp = (*ss)->p.begin(); pp != (*ss)->p.end(); pp++){
             polar tf_point;
             if     ( tf_mode == OLD2NEW ){
-                tf_point = to_polar( tf_sns.r2s( tf_frm.ro2rn( tf_sns.s2r( to_xy( *pp ) ) ) ) );
+                tf_point = to_polar( tf_sns.r2s( _tf_frm.ro2rn( tf_sns.s2r( to_xy( *pp ) ) ) ) );
             }
             else if( tf_mode == NEW2OLD ){
-                tf_point = to_polar( tf_sns.r2s( tf_frm.rn2ro( tf_sns.s2r( to_xy( *pp ) ) ) ) );
+                tf_point = to_polar( tf_sns.r2s( _tf_frm.rn2ro( tf_sns.s2r( to_xy( *pp ) ) ) ) );
             }
             normalizeAngle( tf_point.angle );
             pp->r     = tf_point.r;
@@ -529,4 +549,66 @@ void Segmentation::split_com_len(boost::shared_ptr<std::vector<boost::shared_ptr
         }
     }
     _input=temp;
+}
+
+///------------------------------------------------------------------------------------------------------------------------------------------------///
+bool ang_sort_func_p_cpy    (PointDataCpy i, PointDataCpy j) { return (i.angle  < j.angle ); }
+
+void Segmentation::bloat_image(SegmentDataExtPtrVectorPtr &_input, double radius){
+    if(angle_inc < 0.000001){ return ;}
+    SegmentDataPtr seg_dummy;
+    std::vector<PointDataCpy > p_array;
+    std::vector<bool> quant_pos((2 * M_PI) / angle_inc,false);
+    for(int i = 0; i < (2 * M_PI) / angle_inc; i++){
+        p_array.push_back(PointDataCpy(polar(1000, i * angle_inc - M_PI), seg_dummy));
+    }
+
+    for(SegmentDataExtPtrVectorIter seg = _input->begin(); seg != _input->end(); seg++){
+        for(PointDataVectorIter p = (*seg)->p.begin(); p != (*seg)->p.end(); p++){
+            double sample_pos = round((p->angle + M_PI) / angle_inc ) ;
+            if( quant_pos[sample_pos] == false ){
+                quant_pos[sample_pos] = true;
+                p_array[sample_pos].r             = p->r;
+                p_array[sample_pos].angle         = p->angle;
+                p_array[sample_pos].s_ext_parrent = *seg;
+            }
+        }
+    }
+    std::sort(p_array.begin(), p_array.end(), ang_sort_func_p_cpy);
+
+    std::vector<PointDataCpy > p_array_bloat;
+    for(std::vector<PointDataCpy>::iterator p_cpy = p_array.begin(); p_cpy != p_array.end(); p_cpy++){
+        p_array_bloat.push_back(*p_cpy);
+    }
+
+    for(int i = 0; i < p_array.size(); i++){
+        if(!p_array[i].s_ext_parrent){ continue; }
+        for(int dir=-1;dir<2;dir+=2){
+            for(int j = i;(j > -1)&&(j < p_array.size());j += dir){
+                double delta=4.0*(sqr(p_array[i].r * cos((double)dir * (p_array[j].angle - p_array[i].angle))) - sqr(p_array[i].r) + sqr(radius));
+                if(delta >= 0.){
+                    double r_min=((2.0 * p_array[i].r * cos((double)dir * (p_array[j].angle - p_array[i].angle))) - sqrt(delta)) / 2.0;
+                    if(p_array_bloat[j].r > r_min){
+                        double angle = p_array_bloat[j].angle;
+                        p_array_bloat[j]       = p_array[i];
+                        p_array_bloat[j].angle = angle;
+                        p_array_bloat[j].r     = fmax(0.1, r_min);
+                    }
+                }
+                else{ break;}
+            }
+        }
+    }
+    for(SegmentDataExtPtrVectorIter seg = _input->begin(); seg != _input->end(); seg++){
+        (*seg)->p.clear();
+    }
+    for(std::vector<PointDataCpy>::iterator p_cpy = p_array_bloat.begin(); p_cpy != p_array_bloat.end(); p_cpy++){
+        if(!p_cpy->s_ext_parrent){ continue; }
+        for(SegmentDataExtPtrVectorIter seg = _input->begin(); seg != _input->end(); seg++){
+            if(*seg == p_cpy->s_ext_parrent){
+                (*seg)->p.push_back(polar(p_cpy->r, p_cpy->angle));
+                break;
+            }
+        }
+    }
 }

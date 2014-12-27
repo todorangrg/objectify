@@ -123,6 +123,7 @@ include_directories(
 file(GLOB UTILS_HEADERS "include/utils/*.h")
 file(GLOB DP_HEADERS "include/data_processing/*.h")
 file(GLOB VIS_HEADERS "include/visual/*.h")
+file(GLOB PLAN_HEADERS "include/planner/*.h")
 
 add_library(${ALIAS}_utils_lib 
   src/utils/base_classes.cpp
@@ -158,6 +159,10 @@ add_library(${ALIAS}_data_processing_lib
   src/data_processing/correlation.cpp
   src/data_processing/preprocessing.cpp 
   src/data_processing/segmentation
+  
+  src/planner/planner.cpp
+  ${PLAN_HEADERS}
+  
   ${DP_HEADERS}
 )
 target_link_libraries(${ALIAS}_data_processing_lib

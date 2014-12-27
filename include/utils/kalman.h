@@ -18,6 +18,13 @@ public:
     PlotWorld plotw;
 
 
+    //mainly for tangent bug
+    void   predict_p_cloud(SegmentDataPtrVectorPtr &input, RState  rob_f0, KInp u);
+    RState predict_rob_pos(RState  rob_f0, KInp u);
+    xy goal;
+
+
+
     bool pos_init;
 
     rosbag::Bag &bag;
@@ -52,10 +59,11 @@ public:
     KalmanSLDM(RecfgParam& _param, SensorTf& _tf_sns, rosbag::Bag &bag);
     ~KalmanSLDM(){}
 private:
-    static const int rob_param   = 3;
+    static const int rob_param   = 5;
     static const int obj_param   = 9;
     static const int input_param = 2;
     static const int z_param     = 3;
+    static const int z_rob_param = 2;
 
     double  v_static;
     double  w_static;
@@ -81,7 +89,7 @@ private:
     //kalman_prediction ---
     void predict_rob    (RState  rob_f0, KInp u, cv::Mat& Gt_R, cv::Mat& Q);
     void predict_obj    (KInp u, cv::Mat &Gt, cv::Mat& Q);
-    void predict_p_cloud(SegmentDataPtrVectorPtr &input, RState  rob_f0, KInp u);
+
     cv::Mat Gt_Oi(double dt);
     cv::Mat Q_Oi (double _obj_alfa_xy, double _obj_alpha_phi, double dt);
     // ---kalman_prediction
@@ -89,6 +97,7 @@ private:
     //kalman_update ---
     void init_Oi  (ObjectDataPtr obj, xy obj_com_bar_f1, double dt);
     void update_Oi(ObjectDataPtr seg, KObjZ kObjZ);
+    void update_rob(KInp u);
     // ---kalman_update
 
     //kalman_update ---
@@ -109,6 +118,16 @@ private:
     double&   rob_alfa_2;
     double&   rob_alfa_3;
     double&   rob_alfa_4;
+    double&   rob_alfa_base_v;
+    double&   rob_alfa_base_w;
+
+    double&   rob_ualfa_1;
+    double&   rob_ualfa_2;
+    double&   rob_ualfa_3;
+    double&   rob_ualfa_4;
+    double&   rob_ualfa_base_v;
+    double&   rob_ualfa_base_w;
+
     double&   obj_alfa_xy_min;
     double&   obj_alfa_xy_max;
     double&   obj_alfa_max_vel;

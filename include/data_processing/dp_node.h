@@ -28,6 +28,8 @@ public:
     ros::ServiceClient unpause_gazebo;
     std_srvs::Empty    empty_srv;
 
+    ros::Publisher     pub_cmd_;
+
     bool               new_data;
     double             sleep_freq;
     bool               frame2frame;
@@ -62,6 +64,8 @@ private:
     double sim_rob_alfa_4;
 
     double quaternion2Angle2D ( const geometry_msgs::Quaternion &quat );
+
+
 };
 
 #endif // DP_NODE_H

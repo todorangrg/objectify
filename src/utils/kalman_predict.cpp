@@ -14,7 +14,7 @@ void KalmanSLDM::prediction(SegmentDataPtrVectorPtr &input, KInp &u){
     if(u.w != u.w){ u.w = 0; }
 
     Mat Gt (Mat::zeros(P.rows, P.cols, CV_64F));
-    Mat Gt_R = Gt.rowRange(0, rob_param).colRange(0, rob_param); Mat(Mat::eye(3,3,CV_64F)).copyTo(Gt_R);
+    Mat Gt_R = Gt.rowRange(0, rob_param).colRange(0, rob_param); Mat(Mat::eye(rob_param,rob_param,CV_64F)).copyTo(Gt_R);
 
     Mat Q(P.rows,P.cols,CV_64F, 0.);
     RState  rob_f0(S);
@@ -37,61 +37,88 @@ void KalmanSLDM::prediction(SegmentDataPtrVectorPtr &input, KInp &u){
     //cout<<"S_BAR="<<endl<<" "<<S   <<endl<<endl;
 }
 
+RState KalmanSLDM::predict_rob_pos(RState  rob_f0, KInp u){
+    RState d_rob;
+    if(fabs(u.w) > 0.001) {
+        d_rob.xx   = (- u.v/u.w * sin(rob_f0.xphi) + u.v/u.w * sin(rob_f0.xphi + u.w * u.dt));
+        d_rob.xy   = (+ u.v/u.w * cos(rob_f0.xphi) - u.v/u.w * cos(rob_f0.xphi + u.w * u.dt));
+        d_rob.xphi = u.w * u.dt;
+    } else {
+        d_rob.xx   = u.v  * u.dt  * cos(rob_f0.xphi);
+        d_rob.xy   = u.v  * u.dt  * sin(rob_f0.xphi);
+        d_rob.xphi = 0.0;
+    }
+    return d_rob;
+}
+
+
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 void KalmanSLDM::predict_rob(RState  rob_f0, KInp u, Mat& Gt_R, Mat& Q){
     ///ROBOT STATE PREDICTION----
-    double dx, dy, da;
 
-    if(fabs(u.w) > 0.001) {
-        dx = (- u.v/u.w * sin(rob_f0.xphi) + u.v/u.w * sin(rob_f0.xphi + u.w * u.dt));
-        dy = (+ u.v/u.w * cos(rob_f0.xphi) - u.v/u.w * cos(rob_f0.xphi + u.w * u.dt));
-        da = u.w * u.dt;
-    } else {
-        dx = u.v  * u.dt  * cos(rob_f0.xphi);
-        dy = u.v  * u.dt  * sin(rob_f0.xphi);
-        da = 0.0;
-    }
-    S.row(0) += dx; S.row(1) += dy; S.row(2) += normalizeAngle(da);  S.copyTo(S_bar);
+
+    u.v = S.at<double>(3);
+    u.w = S.at<double>(4);
+
+    RState d_rob = predict_rob_pos(rob_f0, u);
+
+    S.row(0) += d_rob.xx; S.row(1) += d_rob.xy; S.row(2) += normalizeAngle(d_rob.xphi);  S.copyTo(S_bar);
     ///----ROBOT STATE PREDICTION
 
-    Mat Vt_R = Mat::eye(rob_param, input_param, CV_64F);
+    Mat Vt_R = Mat::zeros(rob_param, input_param, CV_64F);
     ///ROBOT JACOBIANS----
     if(fabs(u.w) > 0.001){
         Gt_R.row(0).col(2) = - (u.v * (cos(rob_f0.xphi) - cos(u.dt * u.w + rob_f0.xphi)) / u.w);
         Gt_R.row(1).col(2) = - (u.v * (sin(rob_f0.xphi) - sin(u.dt * u.w + rob_f0.xphi)) / u.w);
 
-        Vt_R.row(0).col(0) = - ((sin(rob_f0.xphi) - sin(u.dt * u.w + rob_f0.xphi)) / u.w);
-        Vt_R.row(1).col(0) =    (cos(rob_f0.xphi) - cos(u.dt * u.w + rob_f0.xphi)) / u.w;
-        Vt_R.row(0).col(1) = u.v * (cos(u.dt * u.w + rob_f0.xphi) * u.dt * u.w + sin(rob_f0.xphi) - sin(u.dt * u.w + rob_f0.xphi)) / sqr(u.w);
-        Vt_R.row(1).col(1) = u.v * (sin(u.dt * u.w + rob_f0.xphi) * u.dt * u.w - cos(rob_f0.xphi) + cos(u.dt * u.w + rob_f0.xphi)) / sqr(u.w);
-        Vt_R.row(2).col(1) = u.dt;
+        Gt_R.row(0).col(3) = - (sin(rob_f0.xphi) - sin(u.dt * u.w + rob_f0.xphi))/ u.w;
+        Gt_R.row(1).col(3) =   (cos(rob_f0.xphi) - cos(u.dt * u.w + rob_f0.xphi))/ u.w;
+        Gt_R.row(0).col(4) = u.v * (cos(u.dt * u.w + rob_f0.xphi) * u.dt * u.w + sin(rob_f0.xphi) - sin(u.dt * u.w + rob_f0.xphi)) / sqr(u.w);
+        Gt_R.row(1).col(4) = u.v * (sin(u.dt * u.w + rob_f0.xphi) * u.dt * u.w - cos(rob_f0.xphi) + cos(u.dt * u.w + rob_f0.xphi)) / sqr(u.w);
+
+
+        Vt_R.row(0).col(0) = Gt_R.at<double>(0,3);
+        Vt_R.row(1).col(0) = Gt_R.at<double>(1,3);
+        Vt_R.row(0).col(1) = Gt_R.at<double>(0,4);
+        Vt_R.row(1).col(1) = Gt_R.at<double>(1,4);
     }
     else{
-        Vt_R.row(0).col(1) = -0.5 * sqr(u.dt) * u.v * sin(rob_f0.xphi);
-        Vt_R.row(1).col(1) =  0.5 * sqr(u.dt) * u.v * cos(rob_f0.xphi);
-        Vt_R.row(0).col(0) = u.dt * cos(rob_f0.xphi);
-        Vt_R.row(1).col(0) = u.dt * sin(rob_f0.xphi);
-        Vt_R.row(2).col(1) = u.dt;
+        Gt_R.row(0).col(3) = - u.dt * cos(rob_f0.xphi);
+        Gt_R.row(1).col(3) =   u.dt * sin(rob_f0.xphi);
+        Gt_R.row(0).col(4) = - 0.5 * sqr(u.dt) * u.v * sin(rob_f0.xphi);
+        Gt_R.row(1).col(4) =   0.5 * sqr(u.dt) * u.v * cos(rob_f0.xphi);
+
+        Vt_R.row(0).col(0) = Gt_R.at<double>(0,3);
+        Vt_R.row(1).col(0) = Gt_R.at<double>(1,3);
+        Vt_R.row(0).col(1) = Gt_R.at<double>(0,4);
+        Vt_R.row(1).col(1) = Gt_R.at<double>(1,4);
     }
+    Gt_R.row(2).col(4) = u.dt;
+    Vt_R.row(2).col(1) = u.dt;
+    Vt_R.row(3).col(0) =   1.;
+    Vt_R.row(4).col(1) =   1.;
     ///----ROBOT JACOBIANS
 
     //////INPUT NOISE ----
-    double sign;
-    if(fabs(u.v) > fabs(v_static)){ sign = sgn(u.v);     }
-    else{                           sign = sgn(v_static);}
-    if(fabs(u.w) > fabs(w_static)){ sign = sgn(u.w);     }
-    else{                           sign = sgn(w_static);}
-    double v_noise = sign * fmax(fabs(u.v), fabs(v_static));
-    double w_noise = sign * fmax(fabs(u.w), fabs(w_static));
-    v_static = (v_static + u.v) / 2.0;
-    w_static = (w_static + u.w) / 2.0;
+//    double sign;
+//    if(fabs(u.v) > fabs(v_static)){ sign = sgn(u.v);     }
+//    else{                           sign = sgn(v_static);}
+//    if(fabs(u.w) > fabs(w_static)){ sign = sgn(u.w);     }
+//    else{                           sign = sgn(w_static);}
+//    double v_noise = sign * fmax(fabs(u.v), fabs(v_static));
+//    double w_noise = sign * fmax(fabs(u.w), fabs(w_static));
+//    v_static = (v_static + u.v) / 2.0;
+//    w_static = (w_static + u.w) / 2.0;
 
     Mat M = Mat::zeros(input_param , input_param, CV_64F);
-    M.row(0).col(0) = rob_alfa_1 * sqr(v_noise) + rob_alfa_2 * sqr(w_noise);
-    M.row(1).col(1) = rob_alfa_3 * sqr(v_noise) + rob_alfa_4 * sqr(w_noise);
+    M.row(0).col(0) = /*rob_alfa_1 * sqr(u.v) + rob_alfa_2 * sqr(u.w) +*/ rob_alfa_base_v;
+    M.row(1).col(1) = /*rob_alfa_3 * sqr(u.v) + rob_alfa_4 * sqr(u.w) +*/ rob_alfa_base_w;
 
     Mat(Vt_R * M * Vt_R.t()).copyTo(Q.rowRange(0,rob_param).colRange(0,rob_param));
+
+//    cout<<"qpredrob=" <<endl<<" "<<Vt_R * M * Vt_R.t()                       <<endl<<endl;
+//    cout<<"vtr=" <<endl<<" "<<Vt_R<<endl<<endl;
     ///----INPUT NOISE
 }
 

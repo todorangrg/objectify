@@ -64,6 +64,7 @@ public:
     Line(double aa,double bb, double cc){
         a=aa;b=bb;c=cc;
     }
+    Line(){}
 };
 
 Line get_line_param (xy p1, xy p2);
@@ -71,6 +72,8 @@ Line get_line_param (xy p1, xy p2);
 xy   get_line_inters(Line l,xy p);
 
 xy   get_line_inters(Line l1, Line l2);
+
+double get_dist_p(Line l, xy p0, xy *p_d);
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 

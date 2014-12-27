@@ -156,6 +156,16 @@ public:
     double kalman_rob_alfa_2;
     double kalman_rob_alfa_3;
     double kalman_rob_alfa_4;
+    double kalman_rob_alfa_base_v;
+    double kalman_rob_alfa_base_w;
+
+    double kalman_rob_ualfa_1;
+    double kalman_rob_ualfa_2;
+    double kalman_rob_ualfa_3;
+    double kalman_rob_ualfa_4;
+    double kalman_rob_ualfa_base_v;
+    double kalman_rob_ualfa_base_w;
+
     double kalman_obj_alfa_xy_min;
     double kalman_obj_alfa_xy_max;
     double kalman_obj_alfa_max_vel;
@@ -282,9 +292,11 @@ public:
     double         angle;
     PointData      p_parrent;
     SegmentDataPtr s_parrent;
+    SegmentDataExtPtr s_ext_parrent;
 
     //Constructors & Destructors
-    PointDataCpy(PointData p,SegmentDataPtr _s_parrent): r(p.r), angle(p.angle), p_parrent(p), s_parrent(_s_parrent){}
+    PointDataCpy(PointData p,SegmentDataPtr    _s_parrent): r(p.r), angle(p.angle), p_parrent(p), s_parrent    (_s_parrent){}
+    PointDataCpy(PointData p,SegmentDataExtPtr _s_parrent): r(p.r), angle(p.angle), p_parrent(p), s_ext_parrent(_s_parrent){}
     ~PointDataCpy(){}
 };
 
@@ -367,8 +379,16 @@ public:
     bool solved;
     double life_time;
 
+    //tangent bug
+    xy             wall_potential[2];     //computed every frame
+    double           dist_to_goal[2];     //not computed every frame; inits with max_val, then updates if smaller
+    polar              ang_bounds[2][2];  //computed every frame
+
+    double              closest_d[2];     //computed every frame
+    //--tangent bug
+
     //Constructors & Destructors
-    ObjectData(int _id): id(_id), solved(true), life_time(0){}
+    ObjectData(int _id): id(_id), solved(true), life_time(0) {dist_to_goal[0] = 10000000; dist_to_goal[1] = 10000000;}
     ~ObjectData(){}
 };
 

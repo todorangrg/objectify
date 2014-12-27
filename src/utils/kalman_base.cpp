@@ -15,6 +15,14 @@ KalmanSLDM::KalmanSLDM(RecfgParam& _param, SensorTf& _tf_sns , rosbag::Bag &_bag
     rob_alfa_2          (_param.kalman_rob_alfa_2),
     rob_alfa_3          (_param.kalman_rob_alfa_3),
     rob_alfa_4          (_param.kalman_rob_alfa_4),
+    rob_alfa_base_v     (_param.kalman_rob_alfa_base_v),
+    rob_alfa_base_w     (_param.kalman_rob_alfa_base_w),
+    rob_ualfa_1         (_param.kalman_rob_ualfa_1),
+    rob_ualfa_2         (_param.kalman_rob_ualfa_2),
+    rob_ualfa_3         (_param.kalman_rob_ualfa_3),
+    rob_ualfa_4         (_param.kalman_rob_ualfa_4),
+    rob_ualfa_base_v    (_param.kalman_rob_ualfa_base_v),
+    rob_ualfa_base_w    (_param.kalman_rob_ualfa_base_w),
     obj_alfa_xy_min     (_param.kalman_obj_alfa_xy_min),
     obj_alfa_xy_max     (_param.kalman_obj_alfa_xy_max),
     obj_alfa_max_vel    (_param.kalman_obj_alfa_max_vel),
@@ -40,14 +48,19 @@ void KalmanSLDM::init(RState rob_x){
     S.release(); S_bar.release(); P.release();;
     Oi.clear();
 
-    S_bar.push_back(rob_x.xx); S_bar.push_back(rob_x.xy); S_bar.push_back(rob_x.xphi);
-    S    .push_back(rob_x.xx); S    .push_back(rob_x.xy); S    .push_back(rob_x.xphi);
+    S_bar.push_back(rob_x.xx); S_bar.push_back(rob_x.xy); S_bar.push_back(rob_x.xphi); S_bar.push_back(0.); S_bar.push_back(0.);
+    S    .push_back(rob_x.xx); S    .push_back(rob_x.xy); S    .push_back(rob_x.xphi); S    .push_back(0.); S    .push_back(0.);
     P = Mat::zeros(rob_param, rob_param, CV_64F);
 
-    S_bar_old.push_back(rob_x.xx); S_bar_old.push_back(rob_x.xy); S_bar_old.push_back(rob_x.xphi);
-    S_old    .push_back(rob_x.xx); S_old    .push_back(rob_x.xy); S_old    .push_back(rob_x.xphi);
+    S_bar_old.push_back(rob_x.xx); S_bar_old.push_back(rob_x.xy); S_bar_old.push_back(rob_x.xphi); S_bar_old.push_back(0.); S_bar_old.push_back(0.);
+    S_old    .push_back(rob_x.xx); S_old    .push_back(rob_x.xy); S_old    .push_back(rob_x.xphi); S_old    .push_back(0.); S_old    .push_back(0.);
     P_old = Mat::zeros(rob_param, rob_param, CV_64F);
 
+    Mat Q_rob_init(rob_param,rob_param, CV_64F, 0.);
+    Q_rob_init.row(3).col(3) = rob_alfa_base_v;
+    Q_rob_init.row(4).col(4) = rob_alfa_base_w;
+    Q_rob_init.copyTo(P.rowRange(0,rob_param).colRange(0,rob_param));
+    P.copyTo(P_old);
     //cout<<"S="<<endl<<" "<<S<<endl<<endl;
     //cout<<"P="<<endl<<" "<<P<<endl<<endl;
     //cout<<"M="<<endl<<" "<<M<<endl<<endl;

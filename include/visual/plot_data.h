@@ -24,7 +24,7 @@ public:
 
     void plot_segm_tf(const SegmentDataExtPtrVectorPtr &data, int frame, cv::Scalar color);
 
-    void plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k, cv::Scalar col_cov_v);
+    void plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k, cv::Scalar col_cov_v, cv::Scalar col_cov_x);
 
     //Constructors & Destructors
     PlotData(std::string wndView,RecfgParam &_param, SensorTf& _tf_sns);

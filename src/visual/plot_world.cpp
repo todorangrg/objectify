@@ -21,7 +21,8 @@ PlotWorld::PlotWorld(std::string wndView,RecfgParam &_param, SensorTf& _tf_sns, 
     view_len(_param.viz_world_len),
     tf_sns(_tf_sns),
     image_size(900),
-    k(_k){
+    k(_k),
+    writing_to_bag(false){
 
     namedWindow   (wndView_, CV_GUI_EXPANDED);
     resizeWindow  (wndView_, 900, 900);
@@ -46,19 +47,53 @@ void PlotWorld::mouseCallBackWorld ( int evt, int c, int r, int flags, void *par
     static int bag_no = 0;
     PlotWorld &pw = *((PlotWorld *) param);
     if      ( evt == CV_EVENT_LBUTTONDOWN ) {
-        if(pw.k.pos_init == false){ return; }
-        pw.view_center.x =  pw.k.S.at<double>(0);
-        pw.view_center.y =  pw.k.S.at<double>(1);
-        pw.k.pos_init = false; // resetting kalman
+        pw.k.goal = pw.i2w(c,r);
+        for(std::map<ObjectDataPtr, ObjMat>::iterator oi =  pw.k.Oi.begin(); oi != pw.k.Oi.end(); oi ++){
+            oi->first->dist_to_goal[0] = 10000000;
+            oi->first->dist_to_goal[1] = 10000000;
+        }//RESET OBJECT T_BUG INFO!!!!!!!!
 
-        pw.k.bag.close();
-        pw.k.bag.open(pw.k.bag_file_n + boost::lexical_cast<std::string>(bag_no) + ".bag",rosbag::bagmode::Write);
-        bag_no++;
+//        pw.k.bag.close();
+//        pw.writing_to_bag = false;
     }
     else if ( evt == CV_EVENT_RBUTTONDOWN ) {
+        if(pw.k.pos_init == false){ return; }
+        pw.k.pos_init = false; // resetting kalman
+
+//        pw.k.bag.close();
+//        pw.k.bag.open(pw.k.bag_file_n + boost::lexical_cast<std::string>(bag_no) + ".bag",rosbag::bagmode::Write);
+//        bag_no++;
+//        pw.writing_to_bag = true;
     }
     else if ( evt == CV_EVENT_MBUTTONDOWN ) {
+        pw.view_center.x =  pw.k.S.at<double>(0);
+        pw.view_center.y =  pw.k.S.at<double>(1);
     }
+}
+
+///------------------------------------------------------------------------------------------------------------------------------------------------///
+
+void PlotWorld::plot_t_bug(double d_followed, ObjectDataPtr o_followed, int dir_followed, polar target_p, polar potential){
+    if(!k.pos_init){ return; }
+    std::stringstream s;
+    s<<"d_followed= "<<d_followed;
+    putText(plot,s.str(), xy(600,35),FONT_HERSHEY_PLAIN,1,green);s.str("");
+    s<<"o_followed= ";
+    if(d_followed == -1){ s<<"Free space";  }
+    else                { s<<o_followed->id; }
+    putText(plot,s.str(), xy(600, 65),FONT_HERSHEY_PLAIN,1,green);s.str("");
+    s<<"dir_followed= ";
+    if     (dir_followed == 0){ s<<"NEG"; }
+    else if(dir_followed == 1){ s<<"POS"; }
+    else                      { s<<"UNK"; }
+    putText(plot,s.str(), xy(600, 95),FONT_HERSHEY_PLAIN,1,green);s.str("");
+
+    RState rob_f0(k.S);
+    tf_r.init(xy(rob_f0.xx, rob_f0.xy), rob_f0.xphi);
+
+
+    line(plot,w2i(tf_r.s2r(tf_sns.s2r(xy(0,0)))),w2i(tf_r.s2r(tf_sns.s2r(to_xy(target_p)))),magenta,2);
+    line(plot,w2i(tf_r.s2r(tf_sns.s2r(xy(0,0)))),w2i(tf_r.s2r(tf_sns.s2r(to_xy(potential)))),yellow,2);
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -136,6 +171,17 @@ void PlotWorld::plot_kalman(boost::shared_ptr<std::vector<boost::shared_ptr<SegD
 
     ellipse = cov2rect(cov_xy22,w2i(rob_f0.xx, rob_f0.xy));
     cv::ellipse(plot,ellipse,col_cov_x,2);
+
+    putFullCircle(w2i(rob_f0.xx, rob_f0.xy),1,3,col_cov_v);
+    if(k.S.at<double>(3) > 0.2){
+        putArrow(w2i(rob_f0.xx, rob_f0.xy),w2i(rob_f0.xx + k.S.at<double>(3) * cos(rob_f0.xphi), rob_f0.xy + k.S.at<double>(3) * sin(rob_f0.xphi)),col_cov_v,2);
+    }
+
+    cov_xy22 = cv::Matx22d(k.P.rowRange(3,5).colRange(3,5));
+    cv::Matx22d rot_rob(cos(-rob_f0.xphi), sin(-rob_f0.xphi), -sin(-rob_f0.xphi), cos(-rob_f0.xphi));
+    cov_xy22 = Mw2i22 * rot_rob * cov_xy22 * rot_rob.t() * Mw2i22.t();
+    ellipse = cov2rect(cov_xy22,w2i(rob_f0.xx + k.S.at<double>(3) * cos(rob_f0.xphi), rob_f0.xy + k.S.at<double>(3) * sin(rob_f0.xphi)));
+    cv::ellipse(plot,ellipse,col_cov_v,2);
 
     for(int i = 0; i < 5; i++){
         o_col[i].used = false;
@@ -233,7 +279,13 @@ void PlotWorld::update(){
         }
 
 
+        putFullCircle(w2i(k.goal),1,5,blue);
+
         plot_kalman(k.seg_init, cov_x, cov_v);
+        if(writing_to_bag){
+            putFullCircle(xy(30,30),1,10,red);
+            putText(plot,"Recording to bag-file", xy(35,40),FONT_HERSHEY_PLAIN,1,red);
+        }
     }
     else{
         destroyWindow(wndView_);
@@ -245,7 +297,7 @@ void PlotWorld::update(){
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 void PlotWorld::init_w2i() {
-    int scale = (double)image_size / ( view_len );
+    double scale = (double)image_size / ( view_len );
     Mat_<double> Sc = (Mat_<double>(3,3) << scale, 0,     0,
                                             0, scale,     0,
                                             0,     0, scale);   // Scale
