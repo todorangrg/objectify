@@ -46,7 +46,7 @@ void Segmentation::run_future(SegmentDataPtrVectorPtr & seg_init, SegmentDataExt
     sort_seg_init     (seg_init);
     split_com_len     (seg_init,          false);
 
-    assign_seg_ext    (seg_init   , seg_ext_now);
+    assign_seg_ext    (seg_init   , seg_ext_now, false);
     split_for_occl    (seg_ext_now);
     bloat_image       (seg_ext_now, 0.3);
 //    calc_occlusion    (seg_ext_now,     IN_SEG );//
@@ -78,7 +78,7 @@ void Segmentation::run(InputData &input, KalmanSLDM &k, bool advance){
     assign_seg_init(input.sensor_filtered,input.seg_init);
     split_com_len  (input.seg_init,      false);
 
-    assign_seg_ext    (input.seg_init, input.seg_ext);
+    assign_seg_ext    (input.seg_init, input.seg_ext, true);
     calc_tf           (input.seg_ext , NEW2OLD, tf_frm);
     calc_occlusion    (input.seg_ext , IN_ALL );
     sample_const_angle(input.seg_ext );
@@ -93,7 +93,7 @@ void Segmentation::run(InputData &input, KalmanSLDM &k, bool advance){
     sort_seg_init     (k.seg_init);
     split_com_len     (k.seg_init,     true);
 
-    assign_seg_ext    (k.seg_init, k.seg_ext);
+    assign_seg_ext    (k.seg_init, k.seg_ext, true);
     calc_tf           (k.seg_init,  OLD2NEW, tf_frm);
     split_for_occl    (k.seg_ext );
     calc_occlusion    (k.seg_ext ,  IN_SEG );
@@ -148,7 +148,7 @@ void Segmentation::assign_seg_init(const PointDataVectorPtr &input , SegmentData
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void Segmentation::assign_seg_ext(const SegmentDataPtrVectorPtr &input, SegmentDataExtPtrVectorPtr &output){
+void Segmentation::assign_seg_ext(const SegmentDataPtrVectorPtr &input, SegmentDataExtPtrVectorPtr &output, bool in_rangee){
     SegmentDataExtPtrVectorPtr temp( new SegmentDataExtPtrVector );
     temp->reserve(input->size());
     int id = 0;
@@ -156,7 +156,7 @@ void Segmentation::assign_seg_ext(const SegmentDataPtrVectorPtr &input, SegmentD
         temp->push_back(SegmentDataExtPtr(new SegmentDataExt(*it_in, id)));
         int p_added = 0;
         for(PointDataVectorIter it_p = (*it_in)->p.begin(); it_p != (*it_in)->p.end(); it_p++){
-            if(in_range(*it_p)){
+            if((in_range(*it_p))||(!in_rangee)){
                 temp->back()->p.push_back(*it_p);
                 p_added++;
             }
@@ -552,6 +552,14 @@ void Segmentation::split_com_len(boost::shared_ptr<std::vector<boost::shared_ptr
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
+
+class seg_circ_status{
+public:
+    bool quadrant[4];
+    seg_circ_status(){ quadrant[0] = false; quadrant[1] = false; quadrant[2] = false; quadrant[3] = false;}
+    ~seg_circ_status(){}
+};
+
 bool ang_sort_func_p_cpy    (PointDataCpy i, PointDataCpy j) { return (i.angle  < j.angle ); }
 
 void Segmentation::bloat_image(SegmentDataExtPtrVectorPtr &_input, double radius){
@@ -584,15 +592,18 @@ void Segmentation::bloat_image(SegmentDataExtPtrVectorPtr &_input, double radius
     for(int i = 0; i < p_array.size(); i++){
         if(!p_array[i].s_ext_parrent){ continue; }
         for(int dir=-1;dir<2;dir+=2){
-            for(int j = i;(j > -1)&&(j < p_array.size());j += dir){
-                double delta=4.0*(sqr(p_array[i].r * cos((double)dir * (p_array[j].angle - p_array[i].angle))) - sqr(p_array[i].r) + sqr(radius));
+            for(int j = i;(j > - (int)p_array.size())&&(j < 2 * p_array.size());j += dir){
+                int j_circ = j;
+                if     (j >= p_array.size()){ j_circ = j - p_array.size(); }
+                else if(j < 0)              { j_circ = j + p_array.size(); }
+                double delta=4.0*(sqr(p_array[i].r * cos((double)dir * (p_array[j_circ].angle - p_array[i].angle))) - sqr(p_array[i].r) + sqr(radius));
                 if(delta >= 0.){
-                    double r_min=((2.0 * p_array[i].r * cos((double)dir * (p_array[j].angle - p_array[i].angle))) - sqrt(delta)) / 2.0;
-                    if(p_array_bloat[j].r > r_min){
-                        double angle = p_array_bloat[j].angle;
-                        p_array_bloat[j]       = p_array[i];
-                        p_array_bloat[j].angle = angle;
-                        p_array_bloat[j].r     = fmax(0.1, r_min);
+                    double r_min=((2.0 * p_array[i].r * cos((double)dir * (p_array[j_circ].angle - p_array[i].angle))) - sqrt(delta)) / 2.0;
+                    if(p_array_bloat[j_circ].r > r_min){
+                        double angle = p_array_bloat[j_circ].angle;
+                        p_array_bloat[j_circ]       = p_array[i];
+                        p_array_bloat[j_circ].angle = angle;
+                        p_array_bloat[j_circ].r     = fmax(0.1, r_min);
                     }
                 }
                 else{ break;}
@@ -602,12 +613,39 @@ void Segmentation::bloat_image(SegmentDataExtPtrVectorPtr &_input, double radius
     for(SegmentDataExtPtrVectorIter seg = _input->begin(); seg != _input->end(); seg++){
         (*seg)->p.clear();
     }
+    std::map<SegmentDataExtPtr, seg_circ_status> seg_status;
     for(std::vector<PointDataCpy>::iterator p_cpy = p_array_bloat.begin(); p_cpy != p_array_bloat.end(); p_cpy++){
         if(!p_cpy->s_ext_parrent){ continue; }
         for(SegmentDataExtPtrVectorIter seg = _input->begin(); seg != _input->end(); seg++){
             if(*seg == p_cpy->s_ext_parrent){
+
+                if     ((p_cpy->angle >=  0       )&&(p_cpy->angle <   M_PI/2.0)){seg_status[*seg].quadrant[0] = true; }
+                else if((p_cpy->angle >=  M_PI/2.0)&&(p_cpy->angle <=  M_PI   )) {seg_status[*seg].quadrant[1] = true; }
+                else if((p_cpy->angle <  -M_PI/2.0)&&(p_cpy->angle >= -M_PI   )) {seg_status[*seg].quadrant[2] = true; }
+                else if((p_cpy->angle <          0)&&(p_cpy->angle >= -M_PI/2.0)) {seg_status[*seg].quadrant[3] = true; }
+
                 (*seg)->p.push_back(polar(p_cpy->r, p_cpy->angle));
                 break;
+            }
+        }
+    }
+    for(std::map<SegmentDataExtPtr, seg_circ_status>::iterator seg_stat = seg_status.begin(); seg_stat != seg_status.end(); seg_stat++){
+        if((seg_stat->second.quadrant[1] == true)&&(seg_stat->second.quadrant[2] == true)){
+
+            if(seg_stat->first->p.size() > 1){
+                double d_max = 0;
+                int i = 0;
+                int i_max = 0;
+                for(PointDataVectorIter p = seg_stat->first->p.begin(); p != --seg_stat->first->p.end(); p++){
+                    xy p_0 = to_xy(*p); p++;
+                    xy p_1 = to_xy(*p); p--;
+                    if(diff(p_0, p_1) > d_max){ d_max = diff(p_0, p_1); i_max = i; }
+                    i++;
+                }
+                PointDataVector p_cpy = seg_stat->first->p;
+                seg_stat->first->p.clear();
+                seg_stat->first->p.insert(seg_stat->first->p.end(), p_cpy.begin() + i_max + 1, p_cpy.end());
+                seg_stat->first->p.insert(seg_stat->first->p.end(), p_cpy.begin(), p_cpy.begin() + i_max);
             }
         }
     }

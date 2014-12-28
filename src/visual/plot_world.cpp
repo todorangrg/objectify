@@ -51,6 +51,10 @@ void PlotWorld::mouseCallBackWorld ( int evt, int c, int r, int flags, void *par
         for(std::map<ObjectDataPtr, ObjMat>::iterator oi =  pw.k.Oi.begin(); oi != pw.k.Oi.end(); oi ++){
             oi->first->dist_to_goal[0] = 10000000;
             oi->first->dist_to_goal[1] = 10000000;
+            oi->first->ang_bounds[0][0].r = -1000;
+            oi->first->ang_bounds[0][1].r = -1000;
+            oi->first->ang_bounds[1][0].r = -1000;
+            oi->first->ang_bounds[1][1].r = -1000;
         }//RESET OBJECT T_BUG INFO!!!!!!!!
 
 //        pw.k.bag.close();
@@ -92,7 +96,7 @@ void PlotWorld::plot_t_bug(double d_followed, ObjectDataPtr o_followed, int dir_
     tf_r.init(xy(rob_f0.xx, rob_f0.xy), rob_f0.xphi);
 
 
-    line(plot,w2i(tf_r.s2r(tf_sns.s2r(xy(0,0)))),w2i(tf_r.s2r(tf_sns.s2r(to_xy(target_p)))),magenta,2);
+    line(plot,w2i(tf_r.s2r(tf_sns.s2r(xy(0,0)))),w2i(tf_r.s2r(/*tf_sns.s2r(*/to_xy(target_p)/*)*/)),magenta,2);
     line(plot,w2i(tf_r.s2r(tf_sns.s2r(xy(0,0)))),w2i(tf_r.s2r(tf_sns.s2r(to_xy(potential)))),yellow,2);
 }
 

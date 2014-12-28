@@ -175,6 +175,13 @@ public:
     double kalman_discard_old_seg_perc;
     double kalman_no_upd_vel_hard0;
 
+    double planner_pot_scale;
+    double planner_w_kp_goal;
+    double planner_v_kp_w;
+    double planner_v_kp_goal;
+    double planner_v_max;
+    double planner_w_max;
+
     std::list<double> smooth_mask;
     void init_normal_smooth_mask();
 
@@ -388,7 +395,14 @@ public:
     //--tangent bug
 
     //Constructors & Destructors
-    ObjectData(int _id): id(_id), solved(true), life_time(0) {dist_to_goal[0] = 10000000; dist_to_goal[1] = 10000000;}
+    ObjectData(int _id): id(_id), solved(true), life_time(0) {
+        dist_to_goal[0] = 10000000;
+        dist_to_goal[1] = 10000000;
+        ang_bounds[0][0].r = -1000;
+        ang_bounds[0][1].r = -1000;
+        ang_bounds[1][0].r = -1000;
+        ang_bounds[1][1].r = -1000;
+    }
     ~ObjectData(){}
 };
 

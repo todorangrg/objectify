@@ -227,6 +227,13 @@ void DataProcessingNode::callbackParameters (objectify::objectify_paramConfig &c
     param.kalman_discard_old_seg_perc     = config.kalman_discard_old_seg_perc;
     param.kalman_no_upd_vel_hard0         = config.kalman_no_upd_vel_hard0;
 
+    param.planner_pot_scale               = config.planner_pot_scale;
+    param.planner_w_kp_goal               = config.planner_w_kp_goal;
+    param.planner_v_kp_w                  = config.planner_v_kp_w;
+    param.planner_v_kp_goal               = config.planner_v_kp_goal;
+    param.planner_v_max                   = config.planner_v_max;
+    param.planner_w_max                   = config.planner_w_max;
+
     if( frame2frame = config.sim_pause ){
         if( frame2frame_switch_old != config.sim_step ){ frame2frame_callback = true; }
     }

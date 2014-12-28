@@ -22,7 +22,13 @@ TangentBug::TangentBug(RecfgParam& param, SensorTf& _tf_sns, KalmanSLDM & _k, Se
     k(_k),
     segmentation(_segmentation),
     d_followed_fin(-1),
-    dir_followed_fin(UNK){}
+    dir_followed_fin(UNK),
+    pot_scale(param.planner_pot_scale),
+    w_kp_goal(param.planner_w_kp_goal),
+    v_kp_w(param.planner_v_kp_w),
+    v_kp_goal(param.planner_v_kp_goal),
+    v_max(param.planner_v_max),
+    w_max(param.planner_w_max){}
 
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -42,8 +48,8 @@ void TangentBug::run(double _pred_time){
     //here you should bloat the init image
     segmentation.run_future(seg_init, seg_ext_now, seg_ext_ftr, n2f);
 
+    if(k.Oi.count(o_followed_fin) == 0){ o_followed_fin.reset(); d_followed_fin = -1;}
     double        d_followed_old =   d_followed_fin;
-    if(k.Oi.count(o_followed_fin) == 0){ o_followed_fin.reset(); }
     ObjectDataPtr o_followed_old =   o_followed_fin;
     int         dir_followed_old = dir_followed_fin;
     double        d_followed;
@@ -79,14 +85,25 @@ void TangentBug::run(double _pred_time){
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 void TangentBug::vel_controller(xy & full_pot, polar target){
-    full_pot *= 0.001;
+    full_pot *= pot_scale;
+    polar full_pot_polar = to_polar(full_pot);
+    full_pot_polar.r = fmin(full_pot_polar.r, 0.9 * target.r);
+    full_pot = to_xy(full_pot_polar);
     polar controller_target = to_polar(full_pot + to_xy(target));//pot_scale
 
-    //target
-    cmd_vel.w = 0.5  * controller_target.angle;                         //w_kp_goal,
-    cmd_vel.v = fmin(0.01 / fabs(cmd_vel.w), 0.2 * controller_target.r);//v_kp_goal, v_kp_w,
+    if(target.r < 0.1){
+        cmd_vel.w = 0;
+        cmd_vel.v = 0;
+        return;
+    }
 
-    double v_max = 0.5, w_max = 0.4;
+    //target
+    cmd_vel.w = w_kp_goal  * controller_target.angle;
+    cmd_vel.v = fmin(v_kp_w / fabs(controller_target.angle), v_kp_goal * controller_target.r);//v_kp_goal, v_kp_w,
+
+
+
+    //double v_max = 0.5, w_max = 0.4;
     if(abs(cmd_vel.v)>v_max)  cmd_vel.v=sgn(cmd_vel.v)*v_max;//v_max, w_max
     if(abs(cmd_vel.w)>w_max)  cmd_vel.w=sgn(cmd_vel.w)*w_max;
 }
@@ -117,7 +134,12 @@ template <class SegData>
 void TangentBug::potential_weight(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &data, xy goal, FrameTf tf_w2r, int frame, xy & full_pot){
     for(std::map<ObjectDataPtr, ObjMat>::iterator oi = k.Oi.begin(); oi != k.Oi.end(); oi++){
         oi->first->wall_potential[frame] = xy(0,0);
+        oi->first->ang_bounds[frame][NEG].r = -1000;
+        oi->first->ang_bounds[frame][POS].r = -1000;
     }
+    int p_no = 0;
+    double angle_shift_neg = 0;
+    double angle_shift_pos = 0;
     for(typename std::vector<boost::shared_ptr<SegData> >::iterator ss = data->begin(); ss != data->end(); ss++){
         xy pot(0,0);
         double dist_to_goal_min = (*ss)->getObj()->dist_to_goal[frame];
@@ -130,16 +152,18 @@ void TangentBug::potential_weight(boost::shared_ptr<std::vector<boost::shared_pt
                 d_to_rob_min = diff(to_xy(p), xy(0,0));
             }
 
-            if(pp == (*ss)->p.begin()){ ang_bounds[NEG] = p; ang_bounds[POS] = p; }
+            if(pp == (*ss)->p.begin()){
+                ang_bounds[NEG] = p; ang_bounds[POS] = p;
+                angle_shift_neg = - (M_PI + p.angle);
+                angle_shift_pos = - (M_PI + p.angle);
+            }
             else{
-                double ang_diff = p.angle - ang_bounds[NEG].angle;
-                if(/*normalizeAngle(*/ang_diff/*)*/ < 0){
-                    ang_bounds[NEG] = p;
-                }
-                      ang_diff = p.angle - ang_bounds[POS].angle;
-                if(/*normalizeAngle(*/ang_diff/*)*/ > 0){
-                    ang_bounds[POS] = p;
-                }
+                double ang_diff = p.angle + angle_shift_neg;
+                ang_diff        = M_PI + normalizeAngle(ang_diff);
+                if(ang_diff < 0){ ang_bounds[NEG] = p; angle_shift_neg = - (M_PI + p.angle); }
+                ang_diff        = p.angle + angle_shift_pos;
+                ang_diff        = M_PI + normalizeAngle(ang_diff);
+                if(ang_diff > 0){ ang_bounds[POS] = p; angle_shift_pos = - (M_PI + p.angle); }
             }
 
             double dist_to_goal = sqrt(sqr(to_xy(p).x - tf_w2r.ro2rn(goal).x) + sqr(to_xy(p).y - tf_w2r.ro2rn(goal).y));
@@ -147,15 +171,28 @@ void TangentBug::potential_weight(boost::shared_ptr<std::vector<boost::shared_pt
 
             p.r = sqr(1.0 / p.r);
             pot -= to_xy(p);
+            p_no++;
         }
         (*ss)->getObj()->closest_d     [frame]      = d_to_rob_min;
         (*ss)->getObj()->wall_potential[frame]     += pot;
         (*ss)->getObj()->dist_to_goal  [frame]      = dist_to_goal_min;
-        (*ss)->getObj()->ang_bounds    [frame][NEG] = ang_bounds[NEG];
-        (*ss)->getObj()->ang_bounds    [frame][POS] = ang_bounds[POS];
+
+        angle_shift_neg = - (M_PI + (*ss)->getObj()->ang_bounds[frame][NEG].angle);
+        double ang_diff = ang_bounds[NEG].angle + angle_shift_neg;
+        ang_diff        = M_PI + normalizeAngle(ang_diff);
+        if((ang_diff < 0)||((*ss)->getObj()->ang_bounds[frame][NEG].r == -1000)){
+            (*ss)->getObj()->ang_bounds    [frame][NEG] = ang_bounds[NEG];
+        }
+        angle_shift_pos = - (M_PI + (*ss)->getObj()->ang_bounds[frame][POS].angle);
+        ang_diff        = ang_bounds[POS].angle + angle_shift_pos;
+        ang_diff        = M_PI + normalizeAngle(ang_diff);
+        if((ang_diff > 0)||((*ss)->getObj()->ang_bounds[frame][POS].r == -1000)){
+            (*ss)->getObj()->ang_bounds    [frame][POS] = ang_bounds[POS];
+        }
 
         full_pot += pot;
     }
+    if(p_no > 0){ full_pot *= 1.0 / (double)p_no; }
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -171,13 +208,14 @@ void TangentBug::tangent_bug(boost::shared_ptr<std::vector<boost::shared_ptr<Seg
     double angle_to_max = goal_local.angle - angle_max;
 
     goal_local.r = goal_local.r + bloat_size;
+    //TODO HERE HERE HERE !!!!!! PROBLEM AGAIN WITH INCLUSION ON THE ANGULAR BOUNDS
     if(!(((/*normalizeAngle(*/angle_to_min/*)*/ < 0)||(/*normalizeAngle(*/angle_to_max/*)*/ > 0))&&(d_followed_old != -1))){
         for(std::map<ObjectDataPtr, ObjMat>::iterator oi = k.Oi.begin(); oi != k.Oi.end(); oi++){
             double ang_diff[2];
             ang_diff[NEG] = goal_local.angle - oi->first->ang_bounds[frame][NEG].angle ;
             ang_diff[POS] = goal_local.angle - oi->first->ang_bounds[frame][POS].angle ;
             if((/*normalizeAngle(*/ang_diff[NEG]/*)*/ > 0)&&(/*normalizeAngle(*/ang_diff[POS]/*)*/ < 0)){//if found an ang bound
-                free_space  = false;
+                //free_space  = false;
                 bool inside = true;
                 for(typename std::vector<boost::shared_ptr<SegData> >::iterator ss = data->begin(); ss != data->end(); ss++){
                     if((*ss)->getObj() != oi->first){ continue; }
@@ -193,30 +231,9 @@ void TangentBug::tangent_bug(boost::shared_ptr<std::vector<boost::shared_ptr<Seg
                     }
 
                 }
-                if(inside){ free_space = true; break; }
+                if(!inside){ free_space = false; break; }
             }
         }
-//        for(typename std::vector<boost::shared_ptr<SegData> >::iterator ss = data->begin(); ss != data->end(); ss++){
-//            double ang_diff[2];
-//            ang_diff[NEG] = goal_local.angle - (*ss)->getObj()->ang_bounds[frame][NEG].angle ;
-//            ang_diff[POS] = goal_local.angle - (*ss)->getObj()->ang_bounds[frame][POS].angle ;
-//            if((/*normalizeAngle(*/ang_diff[NEG]/*)*/ > 0)&&(/*normalizeAngle(*/ang_diff[POS]/*)*/ < 0)){//if found an ang bound
-//                //possible free_space = false; have to check if target is closer than object border
-//                free_space  = false;
-//                bool inside = true;
-//                for(PointDataVectorIter pp = (*ss)->p.begin(); pp != (*ss)->p.end(); pp++){
-//                    polar p = to_polar(tf_sns.s2r(to_xy(*pp)));
-//                    xy p_inters_line;
-//                    double line_dist = get_dist_p(goal_line, to_xy(p), &p_inters_line);
-//                    if(((p_inters_line.x > fmin(xy(0,0).x,to_xy(goal_local).x))&&(p_inters_line.x < fmax(xy(0,0).x,to_xy(goal_local).x))&&
-//                        (p_inters_line.y > fmin(xy(0,0).y,to_xy(goal_local).y))&&(p_inters_line.y < fmax(xy(0,0).y,to_xy(goal_local).y))&&
-//                        (line_dist < bloat_size))){
-//                        inside = false; break;
-//                    }
-//                }
-//                if(inside){ free_space = true; break; }
-//            }
-//        }
     } else { free_space = false; }
     goal_local.r = goal_local.r - bloat_size;
 

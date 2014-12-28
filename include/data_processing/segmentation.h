@@ -39,7 +39,7 @@ private:
     void sort_seg_init(SegmentDataPtrVectorPtr &segments_init);
 
     void assign_seg_init   (const PointDataVectorPtr         &input , SegmentDataPtrVectorPtr    &segments_init);
-    void assign_seg_ext    (const SegmentDataPtrVectorPtr    &input , SegmentDataExtPtrVectorPtr &output);
+    void assign_seg_ext    (const SegmentDataPtrVectorPtr    &input , SegmentDataExtPtrVectorPtr &output, bool in_rangee);
     void link_init_ext     (      SegmentDataExtPtrVectorPtr &ext);
 
     void split_for_occl    (      SegmentDataExtPtrVectorPtr &input);

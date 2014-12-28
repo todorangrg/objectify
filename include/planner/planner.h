@@ -46,6 +46,13 @@ private:
     double     & angle_max;
     double     & angle_min;
     Segmentation & segmentation;
+
+    double     & pot_scale;
+    double     & w_kp_goal;
+    double     & v_kp_w;
+    double     & v_kp_goal;
+    double     & v_max;
+    double     & w_max;
 };
 
 #endif // PLANNER_H
