@@ -10,7 +10,6 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs  
   roscpp
   sensor_msgs
-  stage_simulation
   message_filters
   dynamic_reconfigure 
   rosbag
