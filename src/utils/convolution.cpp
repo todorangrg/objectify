@@ -393,7 +393,7 @@ void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){
         T  = conv_accepted[i]->T;
         xy tf_com     = mat_mult(T , com    );
 
-        Ti = T.inv();
+        Ti = T.inv(cv::DECOMP_SVD);
         xy tf_com_inv = mat_mult(Ti, com_inv);
 
         double weight  = conv_accepted[i]->score;
@@ -433,7 +433,7 @@ void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){
         T  = conv_accepted[i]->T;
         xy tf_com     = mat_mult(T , com    );
 
-        Ti = T.inv();
+        Ti = T.inv(cv::DECOMP_SVD);
         xy tf_com_inv = mat_mult(Ti, com_inv);
 
         double weight  = conv_accepted[i]->score;
@@ -494,7 +494,7 @@ void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){
        eigvec_cpy.colRange(0,2).row(1).copyTo(eigvec.colRange(0,2).row(0));
        eigvec_cpy.colRange(0,2).row(0).copyTo(eigvec.colRange(0,2).row(1));
    }
-   Qm = eigvec.t() * eval * eigvec.t().inv();
+   Qm = eigvec.t() * eval * eigvec.t().inv(cv::DECOMP_SVD);
 
    
    
@@ -512,7 +512,7 @@ void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){
        eigvec_cpy.colRange(0,2).row(1).copyTo(eigvec.colRange(0,2).row(0));
        eigvec_cpy.colRange(0,2).row(0).copyTo(eigvec.colRange(0,2).row(1));
    }
-   Qim = eigvec.t() * eval * eigvec.t().inv();
+   Qim = eigvec.t() * eval * eigvec.t().inv(cv::DECOMP_SVD);
 
    
    

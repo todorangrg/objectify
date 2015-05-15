@@ -79,7 +79,7 @@ void SensorTf::init(xy trans, double rot) {
 
     // Calculate final transformation matrix
     Ms2r = T * R;
-    Mr2s = Ms2r.inv();
+    Mr2s = Ms2r.inv(cv::DECOMP_SVD);
     //std::cout <<  "Ms2r = " << std::endl << Ms2r << std::endl;
     //std::cout <<  "Mr2s = " << std::endl << Mr2s << std::endl;
 }
@@ -104,7 +104,7 @@ void FrameTf::init(RState rob_x, RState rob_bar_x){
     cv::Mat_<double> T  = (cv::Mat_<double>(3,3) << 1,   0, xx,  0,  1, yy, 0, 0, 1);
     cv::Mat_<double> R2 = (cv::Mat_<double>(3,3) <<c2, -s2,  0, s2, c2,  0, 0, 0, 1);
     Mro2rn = R1 * T * R2;
-    Mrn2ro = Mro2rn.inv();
+    Mrn2ro = Mro2rn.inv(cv::DECOMP_SVD);
     //std::cout <<  "Mrn2ro = " << std::endl << Mrn2ro << std::endl;
 }
 xy FrameTf::rn2ro(double _x, double _y) {

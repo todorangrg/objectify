@@ -301,7 +301,7 @@ void PlotConv::plot_conv_points(std::vector<boost::shared_ptr<ConvolInfo> > &con
     if( convol_no != 0 ){
         int index = std::min(convol_no-1,(int)convol_distr.size()-1);
         T = convol_distr[index]->T;
-        if(conv_stat == CONV_SPL){ T = T.inv(); }
+        if(conv_stat == CONV_SPL){ T = T.inv(cv::DECOMP_SVD); }
         comref = convol_distr[index]->com_ref; comspl = convol_distr[index]->com_spl;
     }
     else{

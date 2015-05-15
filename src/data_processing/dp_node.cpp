@@ -102,7 +102,7 @@ int main( int argc , char **argv ) {
 
 DataProcessingNode::DataProcessingNode(ros::NodeHandle & n, RecfgParam& param, SensorTf& sns_tf, PlotData& plot, PlotConv& plot_conv , rosbag::Bag &bag):
         DataProcessing( param, sns_tf, plot,plot_conv, bag ), n_( n ),
-        odom_sub ( n , "/r1/pose"            , 10 ),/*base_pose_ground_truth*/
+        odom_sub ( n , "/r1/odom"            , 10 ),/*base_pose_ground_truth*//*odom*/
         laser_sub( n , "/r1/front_laser/scan", 10 ),/*base_scan*/
 
         sleep_freq(10),

@@ -400,7 +400,7 @@ void PlotWorld::init_w2i() {
 
     // Calculate final transformation matrix
     Mw2i = T * R * M * Sc;
-    Mi2w = Mw2i.inv();
+    Mi2w = Mw2i.inv(cv::DECOMP_SVD);
 //    std::cout <<  "Mw2i = " << std::endl << Mw2i << std::endl;
 }
 
