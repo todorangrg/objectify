@@ -1,3 +1,35 @@
+/***************************************************************************
+ *   Software License Agreement (BSD License)                              *
+ *   Copyright (C) 2015 by Horatiu George Todoran <todorangrg@gmail.com>   *
+ *                                                                         *
+ *   Redistribution and use in source and binary forms, with or without    *
+ *   modification, are permitted provided that the following conditions    *
+ *   are met:                                                              *
+ *                                                                         *
+ *   1. Redistributions of source code must retain the above copyright     *
+ *      notice, this list of conditions and the following disclaimer.      *
+ *   2. Redistributions in binary form must reproduce the above copyright  *
+ *      notice, this list of conditions and the following disclaimer in    *
+ *      the documentation and/or other materials provided with the         *
+ *      distribution.                                                      *
+ *   3. Neither the name of the copyright holder nor the names of its      *
+ *      contributors may be used to endorse or promote products derived    *
+ *      from this software without specific prior written permission.      *
+ *                                                                         *
+ *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS   *
+ *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT     *
+ *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS     *
+ *   FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE        *
+ *   COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,  *
+ *   INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,  *
+ *   BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;      *
+ *   LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER      *
+ *   CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT    *
+ *   LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY *
+ *   WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE           *
+ *   POSSIBILITY OF SUCH DAMAGE.                                           *
+ ***************************************************************************/
+
 
 #include <opencv/cv.h>
 #include <opencv2/opencv.hpp>
@@ -13,6 +45,19 @@
 #include <boost/lexical_cast.hpp>
 
 using namespace cv;
+
+
+enum{
+    NOW,
+    FTR
+};
+enum{
+    NEG,
+    POS,
+    UNK
+};
+
+
 
 PlotWorld::PlotWorld(std::string wndView,RecfgParam &_param, SensorTf& _tf_sns, KalmanSLDM & _k):
     Plot(wndView),
@@ -57,17 +102,17 @@ void PlotWorld::mouseCallBackWorld ( int evt, int c, int r, int flags, void *par
             oi->first->ang_bounds[1][1].r = -1000;
         }//RESET OBJECT T_BUG INFO!!!!!!!!
 
-//        pw.k.bag.close();
-//        pw.writing_to_bag = false;
+        pw.k.bag.close();
+        pw.writing_to_bag = false;
     }
     else if ( evt == CV_EVENT_RBUTTONDOWN ) {
         if(pw.k.pos_init == false){ return; }
         pw.k.pos_init = false; // resetting kalman
 
-//        pw.k.bag.close();
-//        pw.k.bag.open(pw.k.bag_file_n + boost::lexical_cast<std::string>(bag_no) + ".bag",rosbag::bagmode::Write);
-//        bag_no++;
-//        pw.writing_to_bag = true;
+        pw.k.bag.close();
+        pw.k.bag.open(pw.k.bag_file_n + boost::lexical_cast<std::string>(bag_no) + ".bag",rosbag::bagmode::Write);
+        bag_no++;
+        pw.writing_to_bag = true;
     }
     else if ( evt == CV_EVENT_MBUTTONDOWN ) {
         pw.view_center.x =  pw.k.S.at<double>(0);
@@ -77,7 +122,7 @@ void PlotWorld::mouseCallBackWorld ( int evt, int c, int r, int flags, void *par
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void PlotWorld::plot_t_bug(double d_followed, ObjectDataPtr o_followed, int dir_followed, polar target_p, polar potential){
+void PlotWorld::plot_t_bug(double d_followed, ObjectDataPtr o_followed, int dir_followed, polar target_p, polar target_p_ext, polar potential){
     if(!k.pos_init){ return; }
     std::stringstream s;
     s<<"d_followed= "<<d_followed;
@@ -96,27 +141,38 @@ void PlotWorld::plot_t_bug(double d_followed, ObjectDataPtr o_followed, int dir_
     tf_r.init(xy(rob_f0.xx, rob_f0.xy), rob_f0.xphi);
 
 
+
     line(plot,w2i(tf_r.s2r(tf_sns.s2r(xy(0,0)))),w2i(tf_r.s2r(/*tf_sns.s2r(*/to_xy(target_p)/*)*/)),magenta,2);
+    line(plot,w2i(tf_r.s2r(tf_sns.s2r(xy(0,0)))),w2i(tf_r.s2r(/*tf_sns.s2r(*/to_xy(target_p_ext)/*)*/)),red,2);
     line(plot,w2i(tf_r.s2r(tf_sns.s2r(xy(0,0)))),w2i(tf_r.s2r(tf_sns.s2r(to_xy(potential)))),yellow,2);
+
+
+    for(std::map<ObjectDataPtr, ObjMat>::iterator oi = k.Oi.begin(); oi != k.Oi.end(); oi++){
+        cv::Scalar color;
+        if(oi->first->ang_b_valid[NOW][POS]){ color = green; } else { color = red; }
+        putFullCircle(w2i(tf_r.s2r(/*tf_sns.s2r(*/to_xy(oi->first->ang_bounds[NOW][POS]/*)*/))),1,5,color);
+        if(oi->first->ang_b_valid[NOW][NEG]){ color = green; } else { color = red; }
+        putFullCircle(w2i(tf_r.s2r(/*tf_sns.s2r(*/to_xy(oi->first->ang_bounds[NOW][NEG]/*)*/))),1,5,color);
+    }
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
-void PlotWorld::plot_points(PointDataVector &data,Scalar color){
+void PlotWorld::plot_points(PointDataVector &data,Scalar color, SensorTf & tf_r){
     for (PointDataVectorIter p = data.begin(); p != data.end(); p++){
-        circle(plot, w2i(tf_r.s2r(tf_sns.s2r(to_xy(*p)))),3,color);
+        putFullCircle(w2i(tf_r.s2r(tf_sns.s2r(to_xy(*p)))),3,6,color);
     }
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 template <class SegData>
-void PlotWorld::plot_segm(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &data,cv::Scalar color){
+void PlotWorld::plot_segm(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &data,cv::Scalar color, SensorTf & tf_r){
     if(!data){
         return;
     }
     for(typename std::vector<boost::shared_ptr<SegData> >::iterator it_data=data->begin(); it_data != data->end(); it_data++){
 
-        plot_points((*it_data)->p, color);
+        plot_points((*it_data)->p, color, tf_r);
 
         xy com = (*it_data)->getCom();
         putFullCircle(w2i(tf_sns.s2r(com)),1,4,color);
@@ -150,8 +206,8 @@ void PlotWorld::plot_segm(boost::shared_ptr<std::vector<boost::shared_ptr<SegDat
     }
 }
 
-template void PlotWorld::plot_segm<SegmentData>   (SegmentDataPtrVectorPtr    &data, cv::Scalar color);
-template void PlotWorld::plot_segm<SegmentDataExt>(SegmentDataExtPtrVectorPtr &data, cv::Scalar color);
+template void PlotWorld::plot_segm<SegmentData>   (SegmentDataPtrVectorPtr    &data, cv::Scalar color, SensorTf & tf_r);
+template void PlotWorld::plot_segm<SegmentDataExt>(SegmentDataExtPtrVectorPtr &data, cv::Scalar color, SensorTf & tf_r);
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 template <class SegData>
@@ -170,22 +226,22 @@ void PlotWorld::plot_kalman(boost::shared_ptr<std::vector<boost::shared_ptr<SegD
     RState rob_f0(k.S);
     tf_r.init(xy(rob_f0.xx, rob_f0.xy), rob_f0.xphi);
 
-    circle(plot, w2i(rob_f0.xx, rob_f0.xy), Mw2i[2][2] * 0.3, blue, 3);
-    line  (plot, w2i(rob_f0.xx, rob_f0.xy), w2i(rob_f0.xx + 0.3 * cos(rob_f0.xphi), rob_f0.xy + + 0.3 * sin(rob_f0.xphi)), blue, 3);
+    putFullCircle(w2i(rob_f0.xx, rob_f0.xy), Mw2i[2][2] * 0.15 - 2, Mw2i[2][2] * 0.15 + 5,blue);
+    line  (plot, w2i(rob_f0.xx, rob_f0.xy), w2i(rob_f0.xx + 0.15 * cos(rob_f0.xphi), rob_f0.xy + 0.15 * sin(rob_f0.xphi)), blue, 3);
 
     ellipse = cov2rect(cov_xy22,w2i(rob_f0.xx, rob_f0.xy));
-    cv::ellipse(plot,ellipse,col_cov_x,2);
+    cv::ellipse(plot,ellipse,col_cov_x,3);
 
     putFullCircle(w2i(rob_f0.xx, rob_f0.xy),1,3,col_cov_v);
-    if(k.S.at<double>(3) > 0.2){
-        putArrow(w2i(rob_f0.xx, rob_f0.xy),w2i(rob_f0.xx + k.S.at<double>(3) * cos(rob_f0.xphi), rob_f0.xy + k.S.at<double>(3) * sin(rob_f0.xphi)),col_cov_v,2);
+    if(fabs(k.S.at<double>(3)) > 0.2){
+        putArrow(w2i(rob_f0.xx, rob_f0.xy),w2i(rob_f0.xx + k.S.at<double>(3) * cos(rob_f0.xphi), rob_f0.xy + k.S.at<double>(3) * sin(rob_f0.xphi)),col_cov_v,3);
     }
 
     cov_xy22 = cv::Matx22d(k.P.rowRange(3,5).colRange(3,5));
     cv::Matx22d rot_rob(cos(-rob_f0.xphi), sin(-rob_f0.xphi), -sin(-rob_f0.xphi), cos(-rob_f0.xphi));
     cov_xy22 = Mw2i22 * rot_rob * cov_xy22 * rot_rob.t() * Mw2i22.t();
     ellipse = cov2rect(cov_xy22,w2i(rob_f0.xx + k.S.at<double>(3) * cos(rob_f0.xphi), rob_f0.xy + k.S.at<double>(3) * sin(rob_f0.xphi)));
-    cv::ellipse(plot,ellipse,col_cov_v,2);
+    cv::ellipse(plot,ellipse,col_cov_v,3);
 
     for(int i = 0; i < 5; i++){
         o_col[i].used = false;
@@ -204,6 +260,7 @@ void PlotWorld::plot_kalman(boost::shared_ptr<std::vector<boost::shared_ptr<SegD
                 color_obj = o_col[i].color;
                 o_col[i].used = true;
                 found_col = true;
+                break;
             }
         }
         if(!found_col){
@@ -219,23 +276,24 @@ void PlotWorld::plot_kalman(boost::shared_ptr<std::vector<boost::shared_ptr<SegD
 
 
         double inc = fmin(1.0, obj->life_time / 2.0);
-        plot_points((*s_it)->p, cv::Scalar(0,0,0) + inc * color_obj);
+        plot_points((*s_it)->p, cv::Scalar(0,0,0) + inc * color_obj, tf_r);
 
         if( k.Oi.count(obj) != 0 ){
             //if plot vel
             xy     v  (k.Oi[obj].S_O.at<double>(3,0),k.Oi[obj].S_O.at<double>(4,0));
             double w = k.Oi[obj].S_O.at<double>(5,0);
+//            std::cout<<"w_state = "<<w<<std::endl;
 
             putFullCircle(w2i(com),1,3,col_cov_v);
             if(sqrt(sqr(v.x) + sqr(v.y) ) > 0.2){
-                putArrow(w2i(com),w2i(com + v),col_cov_v,2);
+                putArrow(w2i(com),w2i(com + v),col_cov_v,3);
             }
 
             cov_xy33 = cv::Matx33d(k.Oi[obj].P_OO.rowRange(3,6).colRange(3,6));
             cov_xy22 = cv::Matx22d(cov_xy33(0,0),cov_xy33(0,1),cov_xy33(1,0),cov_xy33(1,1));
             cov_xy22 = Mw2i22 * cov_xy22 * Mw2i22.t();
             ellipse = cov2rect(cov_xy22,w2i(com + v));
-            cv::ellipse(plot,ellipse,col_cov_v,2);
+            cv::ellipse(plot,ellipse,col_cov_v,3);
 
             //if plot pos_cov
 
@@ -244,7 +302,7 @@ void PlotWorld::plot_kalman(boost::shared_ptr<std::vector<boost::shared_ptr<SegD
             cov_xy22 = Mw2i22 * cov_xy22 * Mw2i22.t();
 
             cv::RotatedRect ellipse = cov2rect(cov_xy22,w2i(com));
-            cv::ellipse(plot,ellipse,col_cov_x,2);
+            cv::ellipse(plot,ellipse,col_cov_x,3);
         }
     }
 
@@ -253,7 +311,6 @@ void PlotWorld::plot_kalman(boost::shared_ptr<std::vector<boost::shared_ptr<SegD
             o_col[i].obj_id = -1;
         }
     }
-    int xxx=0;
 }
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
@@ -281,14 +338,40 @@ void PlotWorld::update(){
             putText(plot, "X [5m]", w2i(5.2, -0.3), FONT_HERSHEY_PLAIN, 1, black);
             putText(plot, "Y [5m]", w2i(0.2, 5.5) , FONT_HERSHEY_PLAIN, 1, black);
         }
+        else{
+            double scale  = view_len / 8.0 + 0.05;
+            int i=0;
+//            for (double y = (view_center.y - view_len / 2.0); y < (view_center.y + view_len / 2.0); y+=scale) {
+//                if(i==0){i++;continue;}
+//                std::stringstream s; s.precision(2);s<<std::setw(3)<<std::fixed<<y;
+//                putText(plot, s.str().c_str(), cv::Point(-16,-15) + w2i((view_center.x - view_len / 2.0),y), FONT_HERSHEY_PLAIN, 1, black);
+//                putArrow(w2i((view_center.x - view_len / 2.0),y), cv::Point(0,-10) + w2i((view_center.x - view_len / 2.0),y), black);
+//                i++;
+//            }
+//            i=0;
+//            for (double x = (view_center.x + view_len / 2.0); x > (view_center.x - view_len / 2.0); x-=scale) {
+//                if(i==0){i++;continue;}
+//                std::stringstream s; s.precision(2);s<<std::setw(3)<<std::fixed<<x;
+//                putText(plot, s.str().c_str(), cv::Point(15,6) + w2i(x,(view_center.y + view_len / 2.0)), FONT_HERSHEY_PLAIN, 1, black);
+//                putArrow(w2i(x,(view_center.y + view_len / 2.0)), cv::Point(10,0) + w2i(x,(view_center.y + view_len / 2.0)), black);
+
+//            }
+//            putText(plot, "[X]",cv::Point(5,20) + w2i((view_center.x + view_len / 2.0), (view_center.y + view_len / 2.0)), FONT_HERSHEY_PLAIN, 1, black);
+//            putText(plot, "[Y]",cv::Point(-50,-5) + w2i((view_center.x - view_len / 2.0), (view_center.y - view_len / 2.0)), FONT_HERSHEY_PLAIN, 1, black);
+
+//            line(plot, w2i(-5.0,0), w2i(5.0,0), black);
+//            line(plot, w2i(0,-5.0) , w2i(0,5.0), black);
+//            putText(plot, "X [5m]", w2i(5.2, -0.3), FONT_HERSHEY_PLAIN, 1, black);
+//            putText(plot, "Y [5m]", w2i(0.2, 5.5) , FONT_HERSHEY_PLAIN, 1, black);
+        }
 
 
-        putFullCircle(w2i(k.goal),1,5,blue);
+//        putFullCircle(w2i(k.goal),1,5,blue);
 
         plot_kalman(k.seg_init, cov_x, cov_v);
         if(writing_to_bag){
-            putFullCircle(xy(30,30),1,10,red);
-            putText(plot,"Recording to bag-file", xy(35,40),FONT_HERSHEY_PLAIN,1,red);
+            //putFullCircle(xy(30,30),1,8,red);
+            //putText(plot,"Recording to bag-file", xy(42,38),FONT_HERSHEY_PLAIN,1,red);
         }
     }
     else{

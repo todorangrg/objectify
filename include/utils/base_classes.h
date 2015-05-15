@@ -1,3 +1,36 @@
+/***************************************************************************
+ *   Software License Agreement (BSD License)                              *
+ *   Copyright (C) 2015 by Horatiu George Todoran <todorangrg@gmail.com>   *
+ *                                                                         *
+ *   Redistribution and use in source and binary forms, with or without    *
+ *   modification, are permitted provided that the following conditions    *
+ *   are met:                                                              *
+ *                                                                         *
+ *   1. Redistributions of source code must retain the above copyright     *
+ *      notice, this list of conditions and the following disclaimer.      *
+ *   2. Redistributions in binary form must reproduce the above copyright  *
+ *      notice, this list of conditions and the following disclaimer in    *
+ *      the documentation and/or other materials provided with the         *
+ *      distribution.                                                      *
+ *   3. Neither the name of the copyright holder nor the names of its      *
+ *      contributors may be used to endorse or promote products derived    *
+ *      from this software without specific prior written permission.      *
+ *                                                                         *
+ *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS   *
+ *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT     *
+ *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS     *
+ *   FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE        *
+ *   COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,  *
+ *   INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,  *
+ *   BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;      *
+ *   LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER      *
+ *   CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT    *
+ *   LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY *
+ *   WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE           *
+ *   POSSIBILITY OF SUCH DAMAGE.                                           *
+ ***************************************************************************/
+
+
 #ifndef BASE_CLASSES_H
 #define BASE_CLASSES_H
 
@@ -152,33 +185,33 @@ public:
     double convol_score_thres;
     double convol_noise_ang_base;
 
-    double kalman_rob_alfa_1;
-    double kalman_rob_alfa_2;
-    double kalman_rob_alfa_3;
-    double kalman_rob_alfa_4;
-    double kalman_rob_alfa_base_v;
-    double kalman_rob_alfa_base_w;
-
-    double kalman_rob_ualfa_1;
-    double kalman_rob_ualfa_2;
-    double kalman_rob_ualfa_3;
-    double kalman_rob_ualfa_4;
-    double kalman_rob_ualfa_base_v;
-    double kalman_rob_ualfa_base_w;
-
-    double kalman_obj_alfa_xy_min;
-    double kalman_obj_alfa_xy_max;
-    double kalman_obj_alfa_max_vel;
-    double kalman_obj_alfa_phi;
-    double kalman_obj_init_pow_dt;
-    double kalman_obj_timeout;
+    double kalman_alfa_ini_obj_pow_dt;
+    double kalman_alfa_pre_obj_xy_min;
+    double kalman_alfa_pre_obj_phi;
+    double kalman_alfa_dsc_obj_surface;
     double kalman_discard_old_seg_perc;
     double kalman_no_upd_vel_hard0;
 
+    double kalman_alfa_pre_rob_v_base;
+    double kalman_alfa_pre_rob_w_base;
+    double kalman_alfa_upd_rob_vv;
+    double kalman_alfa_upd_rob_ww;
+
+    double kalman_adaptive_resid_min;
+    double kalman_adaptive_scale_bound;
+    double kalman_adaptive_noise_scale;
+
+    double kalman_adpt_obj_resid_scale;
+
+    double kalman_dynamic_obj;
+
+
     double planner_pot_scale;
     double planner_w_kp_goal;
+    double planner_w_kd_goal;
     double planner_v_kp_w;
     double planner_v_kp_goal;
+    double planner_v_kd_goal;
     double planner_v_max;
     double planner_w_max;
 
@@ -198,7 +231,7 @@ public:
 class RState{
 public:
 
-    double xx; double xy; double xphi;
+    double xx; double xy; double xphi; double vlin; double vang; double alin; double aang;
     RState(cv::Mat _S);
     RState(double _x, double _y, double _ang) : xx(_x),xy(_y),xphi(_ang){}
     RState(){}
@@ -221,6 +254,7 @@ public:
     double xx; double xy; double xphi;
     double vx; double vy; double vphi;
     double ax; double ay; double aphi;
+    void init(cv::Mat _S_O);
     OiState(cv::Mat _S_O);
     OiState(){}
 };
@@ -390,8 +424,10 @@ public:
     xy             wall_potential[2];     //computed every frame
     double           dist_to_goal[2];     //not computed every frame; inits with max_val, then updates if smaller
     polar              ang_bounds[2][2];  //computed every frame
+    bool               ang_b_valid[2][2]; //computed every frame
 
     double              closest_d[2];     //computed every frame
+    std::vector<ObjectDataPtr> parrents_merge;
     //--tangent bug
 
     //Constructors & Destructors
@@ -402,6 +438,7 @@ public:
         ang_bounds[0][1].r = -1000;
         ang_bounds[1][0].r = -1000;
         ang_bounds[1][1].r = -1000;
+        parrents_merge.reserve(20);
     }
     ~ObjectData(){}
 };

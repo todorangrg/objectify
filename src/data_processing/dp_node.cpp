@@ -1,3 +1,36 @@
+/***************************************************************************
+ *   Software License Agreement (BSD License)                              *
+ *   Copyright (C) 2015 by Horatiu George Todoran <todorangrg@gmail.com>   *
+ *                                                                         *
+ *   Redistribution and use in source and binary forms, with or without    *
+ *   modification, are permitted provided that the following conditions    *
+ *   are met:                                                              *
+ *                                                                         *
+ *   1. Redistributions of source code must retain the above copyright     *
+ *      notice, this list of conditions and the following disclaimer.      *
+ *   2. Redistributions in binary form must reproduce the above copyright  *
+ *      notice, this list of conditions and the following disclaimer in    *
+ *      the documentation and/or other materials provided with the         *
+ *      distribution.                                                      *
+ *   3. Neither the name of the copyright holder nor the names of its      *
+ *      contributors may be used to endorse or promote products derived    *
+ *      from this software without specific prior written permission.      *
+ *                                                                         *
+ *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS   *
+ *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT     *
+ *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS     *
+ *   FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE        *
+ *   COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,  *
+ *   INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,  *
+ *   BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;      *
+ *   LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER      *
+ *   CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT    *
+ *   LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY *
+ *   WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE           *
+ *   POSSIBILITY OF SUCH DAMAGE.                                           *
+ ***************************************************************************/
+
+
 #include "data_processing/dp_node.h"
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/split.hpp>
@@ -50,7 +83,7 @@ int main( int argc , char **argv ) {
 
 
             cmd.linear.x = dp.planner.cmd_vel.v; cmd.linear.y = 0.; cmd.angular.z = dp.planner.cmd_vel.w; /// creates motion command
-            dp.pub_cmd_.publish(cmd);                                                                     /// publishes motion command
+//            dp.pub_cmd_.publish(cmd);                                                                     /// publishes motion command
 
             dp.frame2frame_callback = false; dp.new_data = true;
             dp.unpause_gazebo.call(dp.empty_srv);
@@ -69,7 +102,7 @@ int main( int argc , char **argv ) {
 
 DataProcessingNode::DataProcessingNode(ros::NodeHandle & n, RecfgParam& param, SensorTf& sns_tf, PlotData& plot, PlotConv& plot_conv , rosbag::Bag &bag):
         DataProcessing( param, sns_tf, plot,plot_conv, bag ), n_( n ),
-        odom_sub ( n , "/r1/odom"            , 10 ),/*base_pose_ground_truth*/
+        odom_sub ( n , "/r1/pose"            , 10 ),/*base_pose_ground_truth*/
         laser_sub( n , "/r1/front_laser/scan", 10 ),/*base_scan*/
 
         sleep_freq(10),
@@ -89,11 +122,50 @@ DataProcessingNode::DataProcessingNode(ros::NodeHandle & n, RecfgParam& param, S
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
+// void DataProcessingNode::callback_odom_laser(const geometry_msgs::TwistConstPtr &_odom , const sensor_msgs::LaserScanConstPtr &_laser ){
+//     //new_data= true;  
+//     RState stateOdom(0, 0, 0);
+//     if(!k.pos_init){ k.init(stateOdom); }
+// 
+// //    std::cout<<_odom->header.stamp.toSec() - _laser->header.stamp.toSec()<<std::endl; TODO
+// 
+//     PointDataVectorPtr laser_raw_now( new PointDataVector );
+// 
+//     int nr = (_laser->angle_max - _laser->angle_min) / _laser->angle_increment;
+//     for (int i = 0 ; i < nr ; i++ ) {
+//         double laser_noise=nd.normalDist(param.sensor_noise_sigma);
+//         double laser_i;
+//         if((_laser->ranges[i] < param.sensor_r_max )&&(_laser->ranges[i]>0.18)){
+//             laser_i = _laser->ranges[i] + laser_noise;
+//             laser_raw_now->push_back( polar( laser_i, _laser->angle_min + ( _laser->angle_increment * i ) ) );
+//         }
+//     }
+//     KInp vel(_odom->linear.x,_odom->angular.z);
+// 
+//     Distributions noise;
+//     if(fabs(vel.v) < 0.01){ vel.v = 0.; }
+//     if(fabs(vel.w) < 0.01){ vel.w = 0.; }
+//     vel.v += noise.normalDist(0, sim_rob_alfa_1 * vel.v + sim_rob_alfa_2 * vel.w);
+//     vel.w += noise.normalDist(0, sim_rob_alfa_3 * vel.v + sim_rob_alfa_4 * vel.w);//noising the input
+// 
+// //    vel.v = 0;
+// //    vel.w = 0;
+// 
+//     callback_odom_laser_data = InputData(laser_raw_now, stateOdom, vel, _laser->header.stamp);
+//     param.cb_sensor_point_angl_inc=_laser->angle_increment;
+//     param.cb_sensor_point_angl_max=_laser->angle_max;
+//     param.cb_sensor_point_angl_min=_laser->angle_min;
+// 
+//     k.rob_real = stateOdom;
+// }
+
+
 void DataProcessingNode::callback_odom_laser(const nav_msgs::OdometryConstPtr &_odom , const sensor_msgs::LaserScanConstPtr &_laser ){
     //new_data= true;  
     RState stateOdom(_odom->pose.pose.position.x, _odom->pose.pose.position.y, quaternion2Angle2D(_odom->pose.pose.orientation));
     if(!k.pos_init){ k.init(stateOdom); }
 
+//    std::cout<<_odom->header.stamp.toSec() - _laser->header.stamp.toSec()<<std::endl; TODO
 
     PointDataVectorPtr laser_raw_now( new PointDataVector );
 
@@ -114,7 +186,10 @@ void DataProcessingNode::callback_odom_laser(const nav_msgs::OdometryConstPtr &_
     vel.v += noise.normalDist(0, sim_rob_alfa_1 * vel.v + sim_rob_alfa_2 * vel.w);
     vel.w += noise.normalDist(0, sim_rob_alfa_3 * vel.v + sim_rob_alfa_4 * vel.w);//noising the input
 
-    callback_odom_laser_data = InputData(laser_raw_now, stateOdom, vel, _odom->header.stamp.now());
+//    vel.v = 0;
+//    vel.w = 0;
+
+    callback_odom_laser_data = InputData(laser_raw_now, stateOdom, vel, _laser->header.stamp);
     param.cb_sensor_point_angl_inc=_laser->angle_increment;
     param.cb_sensor_point_angl_max=_laser->angle_max;
     param.cb_sensor_point_angl_min=_laser->angle_min;
@@ -204,33 +279,33 @@ void DataProcessingNode::callbackParameters (objectify::objectify_paramConfig &c
     param.convol_p_no_perc_thres          = config.convol_p_no_perc_thres / 100.0;
     param.convol_noise_ang_base           = config.convol_noise_ang_base;
 
-    param.kalman_rob_alfa_1               = config.kalman_rob_alfa_1;
-    param.kalman_rob_alfa_2               = config.kalman_rob_alfa_2;
-    param.kalman_rob_alfa_3               = config.kalman_rob_alfa_3;
-    param.kalman_rob_alfa_4               = config.kalman_rob_alfa_4;
-    param.kalman_rob_alfa_base_v          = config.kalman_rob_alfa_base_v;
-    param.kalman_rob_alfa_base_w          = config.kalman_rob_alfa_base_w;
 
-    param.kalman_rob_ualfa_1              = config.kalman_rob_ualfa_1;
-    param.kalman_rob_ualfa_2              = config.kalman_rob_ualfa_2;
-    param.kalman_rob_ualfa_3              = config.kalman_rob_ualfa_3;
-    param.kalman_rob_ualfa_4              = config.kalman_rob_ualfa_4;
-    param.kalman_rob_ualfa_base_v         = config.kalman_rob_ualfa_base_v;
-    param.kalman_rob_ualfa_base_w         = config.kalman_rob_ualfa_base_w;
-
-    param.kalman_obj_alfa_xy_min          = config.kalman_obj_alfa_xy_min;
-    param.kalman_obj_alfa_xy_max          = config.kalman_obj_alfa_xy_max;
-    param.kalman_obj_alfa_max_vel         = config.kalman_obj_alfa_max_vel;
-    param.kalman_obj_alfa_phi             = config.kalman_obj_alfa_phi;
-    param.kalman_obj_init_pow_dt          = config.kalman_obj_init_pow_dt;
-    param.kalman_obj_timeout              = config.kalman_obj_timeout;
+    param.kalman_alfa_ini_obj_pow_dt      = config.kalman_alfa_ini_obj_pow_dt;
+    param.kalman_alfa_pre_obj_xy_min      = config.kalman_alfa_pre_obj_xy_min;
+    param.kalman_alfa_pre_obj_phi         = config.kalman_alfa_pre_obj_phi;
+    param.kalman_alfa_dsc_obj_surface     = config.kalman_alfa_dsc_obj_surface;
     param.kalman_discard_old_seg_perc     = config.kalman_discard_old_seg_perc;
     param.kalman_no_upd_vel_hard0         = config.kalman_no_upd_vel_hard0;
 
+    param.kalman_alfa_pre_rob_v_base      = config.kalman_alfa_pre_rob_v_base;
+    param.kalman_alfa_pre_rob_w_base      = config.kalman_alfa_pre_rob_w_base;
+    param.kalman_alfa_upd_rob_vv          = config.kalman_alfa_upd_rob_vv;
+    param.kalman_alfa_upd_rob_ww          = config.kalman_alfa_upd_rob_ww;
+
+    param.kalman_adaptive_resid_min       = config.kalman_adaptive_resid_min;
+    param.kalman_adaptive_scale_bound     = config.kalman_adaptive_scale_bound;
+    param.kalman_adaptive_noise_scale     = config.kalman_adaptive_noise_scale;
+
+    param.kalman_adpt_obj_resid_scale     = config.kalman_adpt_obj_resid_scale;
+
+    param.kalman_dynamic_obj              = config.kalman_dynamic_obj;
+
     param.planner_pot_scale               = config.planner_pot_scale;
     param.planner_w_kp_goal               = config.planner_w_kp_goal;
+    param.planner_w_kd_goal               = config.planner_w_kd_goal;
     param.planner_v_kp_w                  = config.planner_v_kp_w;
     param.planner_v_kp_goal               = config.planner_v_kp_goal;
+    param.planner_v_kd_goal               = config.planner_v_kd_goal;
     param.planner_v_max                   = config.planner_v_max;
     param.planner_w_max                   = config.planner_w_max;
 

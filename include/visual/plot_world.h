@@ -19,14 +19,14 @@ public:
 
     void init_w2i();
     void update();
-    void plot_points      (PointDataVector   &data     , cv::Scalar color);
+    void plot_points      (PointDataVector   &data     , cv::Scalar color, SensorTf & tf_r);
 
     template <class SegData>
-    void plot_segm  (boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &data, cv::Scalar color);
+    void plot_segm  (boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &data, cv::Scalar color, SensorTf & tf_r);
     template <class SegData>
     void plot_kalman(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > _input, cv::Scalar col_cov_x, cv::Scalar col_cov_v);
 
-    void plot_t_bug(double d_followed, ObjectDataPtr o_followed, int dir_followed, polar target_p, polar potential);
+    void plot_t_bug(double d_followed, ObjectDataPtr o_followed, int dir_followed, polar target_p, polar target_p_ext, polar potential);
 
     //Constructors & Destructors
     PlotWorld(std::string wndView, RecfgParam &_param, SensorTf& _tf_sns, KalmanSLDM &_k);
@@ -47,8 +47,8 @@ private:
     static void mouseCallBackWorld(int evt, int c, int r, int flags, void *param );
 };
 
-extern template void PlotWorld::plot_segm<SegmentData   >(SegmentDataPtrVectorPtr    &data, cv::Scalar color);
-extern template void PlotWorld::plot_segm<SegmentDataExt>(SegmentDataExtPtrVectorPtr &data, cv::Scalar color);
+extern template void PlotWorld::plot_segm<SegmentData   >(SegmentDataPtrVectorPtr    &data, cv::Scalar color, SensorTf & tf_r);
+extern template void PlotWorld::plot_segm<SegmentDataExt>(SegmentDataExtPtrVectorPtr &data, cv::Scalar color, SensorTf & tf_r);
 
 
 #endif // PLOT_WORLD_H

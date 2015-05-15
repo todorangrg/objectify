@@ -1,3 +1,36 @@
+/***************************************************************************
+ *   Software License Agreement (BSD License)                              *
+ *   Copyright (C) 2015 by Horatiu George Todoran <todorangrg@gmail.com>   *
+ *                                                                         *
+ *   Redistribution and use in source and binary forms, with or without    *
+ *   modification, are permitted provided that the following conditions    *
+ *   are met:                                                              *
+ *                                                                         *
+ *   1. Redistributions of source code must retain the above copyright     *
+ *      notice, this list of conditions and the following disclaimer.      *
+ *   2. Redistributions in binary form must reproduce the above copyright  *
+ *      notice, this list of conditions and the following disclaimer in    *
+ *      the documentation and/or other materials provided with the         *
+ *      distribution.                                                      *
+ *   3. Neither the name of the copyright holder nor the names of its      *
+ *      contributors may be used to endorse or promote products derived    *
+ *      from this software without specific prior written permission.      *
+ *                                                                         *
+ *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS   *
+ *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT     *
+ *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS     *
+ *   FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE        *
+ *   COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,  *
+ *   INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,  *
+ *   BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;      *
+ *   LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER      *
+ *   CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT    *
+ *   LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY *
+ *   WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE           *
+ *   POSSIBILITY OF SUCH DAMAGE.                                           *
+ ***************************************************************************/
+
+
 #include "utils/kalman.h"
 #include "data_processing/correlation.h"
 #include "visual/plot.h"
@@ -10,30 +43,29 @@ using namespace std;
 KalmanSLDM::KalmanSLDM(RecfgParam& _param, SensorTf& _tf_sns , rosbag::Bag &_bag) :
     plotw("World View", _param, _tf_sns, *this),
     bag(_bag),
-    tf_sns              (_tf_sns),
-    rob_alfa_1          (_param.kalman_rob_alfa_1),
-    rob_alfa_2          (_param.kalman_rob_alfa_2),
-    rob_alfa_3          (_param.kalman_rob_alfa_3),
-    rob_alfa_4          (_param.kalman_rob_alfa_4),
-    rob_alfa_base_v     (_param.kalman_rob_alfa_base_v),
-    rob_alfa_base_w     (_param.kalman_rob_alfa_base_w),
-    rob_ualfa_1         (_param.kalman_rob_ualfa_1),
-    rob_ualfa_2         (_param.kalman_rob_ualfa_2),
-    rob_ualfa_3         (_param.kalman_rob_ualfa_3),
-    rob_ualfa_4         (_param.kalman_rob_ualfa_4),
-    rob_ualfa_base_v    (_param.kalman_rob_ualfa_base_v),
-    rob_ualfa_base_w    (_param.kalman_rob_ualfa_base_w),
-    obj_alfa_xy_min     (_param.kalman_obj_alfa_xy_min),
-    obj_alfa_xy_max     (_param.kalman_obj_alfa_xy_max),
-    obj_alfa_max_vel    (_param.kalman_obj_alfa_max_vel),
-    obj_alfa_phi        (_param.kalman_obj_alfa_phi),
-    obj_init_pow_dt     (_param.kalman_obj_init_pow_dt),
-    obj_timeout         (_param.kalman_obj_timeout),
-    discard_old_seg_perc(_param.kalman_discard_old_seg_perc),
-    no_upd_vel_hard0    (_param.kalman_no_upd_vel_hard0),
-    v_static            (0),
-    w_static            (0),
-    pos_init            (false),
+    tf_sns                 (_tf_sns),
+
+    alfa_ini_obj_pow_dt    (_param.kalman_alfa_ini_obj_pow_dt),
+    alfa_pre_obj_xy_min    (_param.kalman_alfa_pre_obj_xy_min),
+    alfa_pre_obj_phi       (_param.kalman_alfa_pre_obj_phi),
+    alfa_dsc_surface       (_param.kalman_alfa_dsc_obj_surface),
+    discard_old_seg_perc   (_param.kalman_discard_old_seg_perc),
+    no_upd_vel_hard0       (_param.kalman_no_upd_vel_hard0),
+
+    alfa_pre_rob_v_base    (_param.kalman_alfa_pre_rob_v_base),
+    alfa_pre_rob_w_base    (_param.kalman_alfa_pre_rob_w_base),
+    alfa_upd_rob_vv        (_param.kalman_alfa_upd_rob_vv),
+    alfa_upd_rob_ww        (_param.kalman_alfa_upd_rob_ww),
+
+    adaptive_resid_min     (_param.kalman_adaptive_resid_min),
+    adaptive_scale_bound   (_param.kalman_adaptive_scale_bound),
+    adaptive_noise_scale   (_param.kalman_adaptive_noise_scale),
+
+    adpt_obj_resid_scale   (_param.kalman_adpt_obj_resid_scale),
+
+    dynamic_obj            (_param.kalman_dynamic_obj),
+
+    pos_init             (false),
     bag_file_n("LocalizationTest"){
 
     seg_init     = SegmentDataPtrVectorPtr(new SegmentDataPtrVector);
@@ -45,21 +77,24 @@ KalmanSLDM::KalmanSLDM(RecfgParam& _param, SensorTf& _tf_sns , rosbag::Bag &_bag
 void KalmanSLDM::init(RState rob_x){
     rob_odom = rob_x;
     pos_init = true;
+    residuals.clear();
     S.release(); S_bar.release(); P.release();;
     Oi.clear();
 
-    S_bar.push_back(rob_x.xx); S_bar.push_back(rob_x.xy); S_bar.push_back(rob_x.xphi); S_bar.push_back(0.); S_bar.push_back(0.);
-    S    .push_back(rob_x.xx); S    .push_back(rob_x.xy); S    .push_back(rob_x.xphi); S    .push_back(0.); S    .push_back(0.);
+    S_bar.push_back(rob_x.xx); S_bar.push_back(rob_x.xy); S_bar.push_back(rob_x.xphi); S_bar.push_back(0.); S_bar.push_back(0.); S_bar.push_back(0.); S_bar.push_back(0.);
+    S    .push_back(rob_x.xx); S    .push_back(rob_x.xy); S    .push_back(rob_x.xphi); S    .push_back(0.); S    .push_back(0.); S    .push_back(0.); S    .push_back(0.);
     P = Mat::zeros(rob_param, rob_param, CV_64F);
 
-    S_bar_old.push_back(rob_x.xx); S_bar_old.push_back(rob_x.xy); S_bar_old.push_back(rob_x.xphi); S_bar_old.push_back(0.); S_bar_old.push_back(0.);
-    S_old    .push_back(rob_x.xx); S_old    .push_back(rob_x.xy); S_old    .push_back(rob_x.xphi); S_old    .push_back(0.); S_old    .push_back(0.);
+    S_bar_old.push_back(rob_x.xx); S_bar_old.push_back(rob_x.xy); S_bar_old.push_back(rob_x.xphi); S_bar_old.push_back(0.); S_bar_old.push_back(0.); S_bar_old.push_back(0.); S_bar_old.push_back(0.);
+    S_old    .push_back(rob_x.xx); S_old    .push_back(rob_x.xy); S_old    .push_back(rob_x.xphi); S_old    .push_back(0.); S_old    .push_back(0.); S_old    .push_back(0.); S_old    .push_back(0.);
     P_old = Mat::zeros(rob_param, rob_param, CV_64F);
 
-    Mat Q_rob_init(rob_param,rob_param, CV_64F, 0.);
-    Q_rob_init.row(3).col(3) = rob_alfa_base_v;
-    Q_rob_init.row(4).col(4) = rob_alfa_base_w;
-    Q_rob_init.copyTo(P.rowRange(0,rob_param).colRange(0,rob_param));
+    if(dynamic_obj){
+        Mat Q_rob_init(rob_param,rob_param, CV_64F, 0.);//HERE INIT POS UNCERTAINTY ALSO!!!
+        Q_rob_init.row(3).col(3) = 10 * alfa_pre_rob_v_base;
+        Q_rob_init.row(4).col(4) = 10 * alfa_pre_rob_w_base;
+        Q_rob_init.copyTo(P.rowRange(0,rob_param).colRange(0,rob_param));
+    }
     P.copyTo(P_old);
     //cout<<"S="<<endl<<" "<<S<<endl<<endl;
     //cout<<"P="<<endl<<" "<<P<<endl<<endl;
@@ -79,15 +114,17 @@ bool KalmanSLDM::add_obj(ObjectDataPtr seg, KObjZ kObjZ){
     obj_zhat_f1.xx = kObjZ.pos.x; obj_zhat_f1.xy = kObjZ.pos.y; obj_zhat_f1.xphi = kObjZ.phi;
 
     //adding the object state parameters
-    S.push_back(cos(rob_bar_f0.xphi) * obj_zhat_f1.xx -
-                sin(rob_bar_f0.xphi) * obj_zhat_f1.xy +
-                cos(tf_sns.getPhi()) * (rob_bar_f0.xx - tf_sns.getXY().x + tf_sns.getXY().x * cos(rob_bar_f0.xphi) - tf_sns.getXY().y * sin(rob_bar_f0.xphi)) +
-                sin(tf_sns.getPhi()) * (rob_bar_f0.xy - tf_sns.getXY().y + tf_sns.getXY().y * cos(rob_bar_f0.xphi) + tf_sns.getXY().x * sin(rob_bar_f0.xphi)));
-    S.push_back(cos(rob_bar_f0.xphi) * obj_zhat_f1.xy +
-                sin(rob_bar_f0.xphi) * obj_zhat_f1.xx +
-                cos(tf_sns.getPhi()) * (   rob_bar_f0.xy - tf_sns.getXY().y + tf_sns.getXY().y * cos(rob_bar_f0.xphi) + tf_sns.getXY().x * sin(rob_bar_f0.xphi)) +
-                sin(tf_sns.getPhi()) * ( - rob_bar_f0.xx + tf_sns.getXY().x - tf_sns.getXY().x * cos(rob_bar_f0.xphi) + tf_sns.getXY().y * sin(rob_bar_f0.xphi)));
-    S.push_back(rob_bar_f0.xphi + obj_zhat_f1.xphi);
+    S.push_back(rob_bar_f0.xx +
+                cos(rob_bar_f0.xphi) * tf_sns.getXY().x -
+                sin(rob_bar_f0.xphi) * tf_sns.getXY().y +
+                cos(tf_sns.getPhi()) * (   obj_zhat_f1.xx * cos(rob_bar_f0.xphi) - obj_zhat_f1.xy * sin(rob_bar_f0.xphi)) +
+                sin(tf_sns.getPhi()) * ( - obj_zhat_f1.xy * cos(rob_bar_f0.xphi) - obj_zhat_f1.xx * sin(rob_bar_f0.xphi)));
+    S.push_back(rob_bar_f0.xy +
+                cos(rob_bar_f0.xphi) * tf_sns.getXY().y +
+                sin(rob_bar_f0.xphi) * tf_sns.getXY().x +
+                cos(tf_sns.getPhi()) * (   obj_zhat_f1.xy * cos(rob_bar_f0.xphi) + obj_zhat_f1.xx * sin(rob_bar_f0.xphi)) +
+                sin(tf_sns.getPhi()) * (   obj_zhat_f1.xx * cos(rob_bar_f0.xphi) - obj_zhat_f1.xy * sin(rob_bar_f0.xphi)));
+    S.push_back(rob_bar_f0.xphi + obj_zhat_f1.xphi + tf_sns.getPhi());
     S.push_back( 0.0 ); S.push_back( 0.0 ); S.push_back( 0.0 ); S.push_back( 0.0 ); S.push_back( 0.0 ); S.push_back( 0.0 );
 
     hconcat(P, Mat(P.rows, obj_param, CV_64F, 0.), P);
@@ -96,34 +133,43 @@ bool KalmanSLDM::add_obj(ObjectDataPtr seg, KObjZ kObjZ){
 
     Oi[seg].i_min = P.rows - obj_param;//mapping object specific information
     Oi[seg].S_O   = S.rowRange(S.rows - obj_param, S.rows);
-    Mat P_ORi(P_OR.rowRange(P_OR.rows - obj_param, P_OR.rows));
-    Mat P_ROi(P_RO.colRange(P_RO.cols - obj_param, P_RO.cols));
+    Mat P_ORi = P_OR.rowRange(P_OR.rows - obj_param, P_OR.rows);
+    Mat P_ROi = P_RO.colRange(P_RO.cols - obj_param, P_RO.cols);
     Oi[seg].P_OO  = P.rowRange(P.rows - obj_param, P.rows).colRange(P.cols - obj_param, P.cols);
 
     ///OBJECT COVARIANCE INITIALIZATION----
     Mat Gt_hinv_R (obj_param, rob_param, CV_64F, 0.);
 
-    Gt_hinv_R.row(0).col(0) =   cos(tf_sns.getPhi()); Gt_hinv_R.row(0).col(1) = sin(tf_sns.getPhi());
-    Gt_hinv_R.row(1).col(0) = - sin(tf_sns.getPhi()); Gt_hinv_R.row(1).col(1) = cos(tf_sns.getPhi());
+    Gt_hinv_R.row(0).col(0) = 1.;
+    Gt_hinv_R.row(1).col(1) = 1.;
     Gt_hinv_R.row(2).col(2) = 1.;
 
-    Gt_hinv_R.row(0).col(2) = - obj_zhat_f1.xy * cos(rob_bar_f0.xphi) - obj_zhat_f1.xx * sin(rob_bar_f0.xphi) + //only this is wihtout sensor
-                                cos(tf_sns.getPhi()) * ( - tf_sns.getXY().y * cos(rob_bar_f0.xphi) - tf_sns.getXY().x * sin(rob_bar_f0.xphi)) +
-                                sin(tf_sns.getPhi()) * (   tf_sns.getXY().x * cos(rob_bar_f0.xphi) - tf_sns.getXY().y * sin(rob_bar_f0.xphi));
-    Gt_hinv_R.row(1).col(2) =   obj_zhat_f1.xx * cos(rob_bar_f0.xphi) - obj_zhat_f1.xy * sin(rob_bar_f0.xphi) + //only this is wihtout sensor
-                                cos(tf_sns.getPhi()) * (   tf_sns.getXY().x * cos(rob_bar_f0.xphi) - tf_sns.getXY().y * sin(rob_bar_f0.xphi)) +
-                                sin(tf_sns.getPhi()) * (   tf_sns.getXY().y * cos(rob_bar_f0.xphi) + tf_sns.getXY().x * sin(rob_bar_f0.xphi));;
+    Gt_hinv_R.row(0).col(2) = - cos(rob_bar_f0.xphi) * (tf_sns.getXY().y + obj_zhat_f1.xy * cos(tf_sns.getPhi()) + obj_zhat_f1.xx * sin(tf_sns.getPhi()))
+                              - sin(rob_bar_f0.xphi) * (tf_sns.getXY().x + obj_zhat_f1.xx * cos(tf_sns.getPhi()) - obj_zhat_f1.xy * sin(tf_sns.getPhi()));
+    Gt_hinv_R.row(1).col(2) =   cos(rob_bar_f0.xphi) * (tf_sns.getXY().x + obj_zhat_f1.xx * cos(tf_sns.getPhi()) - obj_zhat_f1.xy * sin(tf_sns.getPhi()))
+                              - sin(rob_bar_f0.xphi) * (tf_sns.getXY().y + obj_zhat_f1.xy * cos(tf_sns.getPhi()) + obj_zhat_f1.xx * sin(tf_sns.getPhi()));
 
     Mat P_OO_V(9, 9, CV_64F, 0.);
 
-    //Mat Gt_hinv_Z (obj_param, z_param, CV_64F, 0.);
-    //Gt_hinv_Z.row(0).col(0) = cos(rob_bar_f0.xphi); Gt_hinv_Z.row(0).col(1) = - sin(rob_bar_f0.xphi);
-    //Gt_hinv_Z.row(1).col(0) = sin(rob_bar_f0.xphi); Gt_hinv_Z.row(1).col(1) =   cos(rob_bar_f0.xphi);
-    //Gt_hinv_Z.row(2).col(2) = 1.;
 
-    Q_Oi(obj_alfa_xy_min, obj_alfa_phi, obj_init_pow_dt).copyTo(P_OO_V);
+    if(dynamic_obj){
+        Q_Oi(alfa_pre_obj_xy_min, alfa_pre_obj_phi, alfa_ini_obj_pow_dt).copyTo(P_OO_V);
+        Mat(Gt_hinv_R * P.rowRange(0, rob_param).colRange(0, rob_param) * Gt_hinv_R.t()  + P_OO_V/*Gt_hinv_Z * Mat(kObjZ.Q)  * Gt_hinv_Z.t()*/).copyTo(Oi[seg].P_OO);
+    }
+    else{
+        Mat Gt_hinv_Z (obj_param, z_param, CV_64F, 0.);
+        Gt_hinv_Z.row(0).col(0) = 1.;//-sin(rob_bar_f0.xphi)*sin(tf_sns.getPhi())+cos(tf_sns.getPhi())*cos(rob_bar_f0.xphi);
+//        Gt_hinv_Z.row(0).col(1) = -cos(rob_bar_f0.xphi)*sin(tf_sns.getPhi())-cos(tf_sns.getPhi())*sin(rob_bar_f0.xphi);
+//        Gt_hinv_Z.row(1).col(0) =  cos(rob_bar_f0.xphi)*sin(tf_sns.getPhi())+cos(tf_sns.getPhi())*sin(rob_bar_f0.xphi);
+        Gt_hinv_Z.row(1).col(1) = 1.;//-sin(rob_bar_f0.xphi)*sin(tf_sns.getPhi())+cos(tf_sns.getPhi())*cos(rob_bar_f0.xphi);
+        Gt_hinv_Z.row(2).col(2) = 1.;
+        kObjZ.Q = cv::Matx33d(100., 0., 0.,
+                0., 100., 0.,
+                0., 0., 100.);
+        Mat(Gt_hinv_R * P.rowRange(0, rob_param).colRange(0, rob_param) * Gt_hinv_R.t()  + Gt_hinv_Z * Mat(kObjZ.Q)   * Gt_hinv_Z.t()).copyTo(Oi[seg].P_OO);
+    }
 
-    Mat(Gt_hinv_R * P.rowRange(0, rob_param).colRange(0, rob_param) * Gt_hinv_R.t()  + P_OO_V/*Gt_hinv_Z * Mat(kObjZ.Q)  * Gt_hinv_Z.t()*/).copyTo(Oi[seg].P_OO);
+
 
     Mat(Gt_hinv_R * P.rowRange(0, rob_param).colRange(0, P.cols - obj_param)).copyTo(P_ORi);
     Mat(P_ORi.t()).copyTo(P_ROi);

@@ -1,3 +1,35 @@
+/***************************************************************************
+ *   Software License Agreement (BSD License)                              *
+ *   Copyright (C) 2015 by Horatiu George Todoran <todorangrg@gmail.com>   *
+ *                                                                         *
+ *   Redistribution and use in source and binary forms, with or without    *
+ *   modification, are permitted provided that the following conditions    *
+ *   are met:                                                              *
+ *                                                                         *
+ *   1. Redistributions of source code must retain the above copyright     *
+ *      notice, this list of conditions and the following disclaimer.      *
+ *   2. Redistributions in binary form must reproduce the above copyright  *
+ *      notice, this list of conditions and the following disclaimer in    *
+ *      the documentation and/or other materials provided with the         *
+ *      distribution.                                                      *
+ *   3. Neither the name of the copyright holder nor the names of its      *
+ *      contributors may be used to endorse or promote products derived    *
+ *      from this software without specific prior written permission.      *
+ *                                                                         *
+ *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS   *
+ *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT     *
+ *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS     *
+ *   FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE        *
+ *   COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,  *
+ *   INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,  *
+ *   BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;      *
+ *   LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER      *
+ *   CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT    *
+ *   LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY *
+ *   WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE           *
+ *   POSSIBILITY OF SUCH DAMAGE.                                           *
+ ***************************************************************************/
+
 
 #include <opencv/cv.h>
 #include <opencv2/opencv.hpp>
@@ -60,7 +92,7 @@ void PlotData::plot_oult_circles(const std::vector<cv::RotatedRect>& plot_p_ell,
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 template <class SegData>
-void PlotData::plot_segm(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &data,cv::Scalar color){
+void PlotData::plot_segm(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &data,cv::Scalar color, int name){
     if(!data){
         return;
     }
@@ -71,37 +103,59 @@ void PlotData::plot_segm(boost::shared_ptr<std::vector<boost::shared_ptr<SegData
         xy com = (*it_data)->getCom();
         putFullCircle(w2i(tf_sns.s2r(com)),1,4,color);
 
-        std::stringstream s; s.precision(4);
-        s//<<"l:" <<std::setw(3)<< (*it_data)->getLen()
-         <<"|S:"<<               (*it_data)->id
-         <<"|O:";
-        bool frame_old, init;
-        if((*it_data)->getObj()){                        s << (*it_data)->getObj()->id << "(t-1)"; frame_old = true; }
-        else{                                            s << "?"                      << "( t )"; frame_old = false;}
-        if(boost::is_same<SegData, SegmentData>::value){ s << "i";                                 init      = true; }
-        else{                                            s << "e";                                 init      = false;}
-        xy direct;
-        double len = 0.5;
-        double ang = M_PI / 6.0 ;
-        if     (frame_old && init){
-            direct = xy(len * cos(4.0 * ang + M_PI / 2.0), len * sin(4.0 * ang + M_PI / 2.0));
+        if(name != NONE){
+            std::stringstream s; s.precision(4);
+            //s<<"l:" <<std::setw(3)<< (*it_data)->getLen()
+            if(name == ALL){
+                s<<"|S:"<<               (*it_data)->id;
+            }
+
+
+            bool frame_old = true, init = true;
+
+            double len = 0.5;
+            if(name == ALL){
+                s<<"|O:";
+                if((*it_data)->getObj()){                        s << (*it_data)->getObj()->id << "(t-1)"; frame_old = true; }
+                else{                                            s << "?"                      << "( t )"; frame_old = false;}
+                if(boost::is_same<SegData, SegmentData>::value){ s << "i";                                 init      = true; }
+                else{                                            s << "e";                                 init      = false;}
+            }
+            else{
+                s<<"|Obj:";
+                if((*it_data)->getObj()){                        s << (*it_data)->getObj()->id;}
+                else{                                            s << "?"                     ;}
+                len = 1.0;
+            }
+            xy direct;
+            ;
+            double ang = M_PI / 6.0 ;
+            if     (frame_old && init){
+                direct = xy(len * cos(4.0 * ang + M_PI / 2.0), len * sin(4.0 * ang + M_PI / 2.0));
+            }
+            else if(frame_old && !init){
+                direct = xy(len * cos( 5.0 * ang + M_PI / 2.0), len * sin( 5.0 * ang + M_PI / 2.0));
+            }
+            else if(!frame_old && init){
+                direct = xy(len * cos(-2.0 * ang + M_PI / 2.0), len * sin(-2.0 * ang + M_PI / 2.0));
+            }
+            else if(!frame_old && !init){
+                direct = xy(len * cos(-1.0 * ang + M_PI / 2.0), len * sin(-1.0 * ang + M_PI / 2.0));
+            }
+            cv::Scalar color_info = color;
+            double font_size = 1;
+            if(name == OBJ){
+                color_info = black;
+                font_size = 1.6;
+            }
+            line   (plot, w2i(tf_sns.s2r(com)), w2i(tf_sns.s2r(com + direct)), color_info);
+            putText(plot,s.str().c_str(),w2i(tf_sns.s2r(com + direct)),FONT_HERSHEY_PLAIN,font_size,color_info);
         }
-        else if(frame_old && !init){
-            direct = xy(len * cos( 5.0 * ang + M_PI / 2.0), len * sin( 5.0 * ang + M_PI / 2.0));
-        }
-        else if(!frame_old && init){
-            direct = xy(len * cos(-2.0 * ang + M_PI / 2.0), len * sin(-2.0 * ang + M_PI / 2.0));
-        }
-        else if(!frame_old && !init){
-            direct = xy(len * cos(-1.0 * ang + M_PI / 2.0), len * sin(-1.0 * ang + M_PI / 2.0));
-        }
-        line   (plot, w2i(tf_sns.s2r(com)), w2i(tf_sns.s2r(com + direct)), color);
-        putText(plot,s.str().c_str(),w2i(tf_sns.s2r(com + direct)),FONT_HERSHEY_PLAIN,1,color);
     }
 }
 
-template void PlotData::plot_segm<SegmentData>   (SegmentDataPtrVectorPtr    &data, cv::Scalar color);
-template void PlotData::plot_segm<SegmentDataExt>(SegmentDataExtPtrVectorPtr &data, cv::Scalar color);
+template void PlotData::plot_segm<SegmentData>   (SegmentDataPtrVectorPtr    &data, cv::Scalar color, int name);
+template void PlotData::plot_segm<SegmentDataExt>(SegmentDataExtPtrVectorPtr &data, cv::Scalar color, int name);
 
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
@@ -176,10 +230,25 @@ void PlotData::plot_segm_tf(const SegmentDataExtPtrVectorPtr &data, int frame, c
 void PlotData::plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k, cv::Scalar col_cov_v, cv::Scalar col_cov_x){
     if((!data)||(!k.pos_init)){ return; }
 
+    circle(plot, w2i(0,0), Mw2i[2][2] * 0.15, blue, 2);
+    line  (plot, w2i(0,0), w2i(0.15, 0), blue, 2);
+
     xy pose_corr(k.S.at<double>(0,0) - k.S_bar.at<double>(0,0), k.S.at<double>(1,0) - k.S_bar.at<double>(1,0));
-    putFullCircle(w2i(xy(0,0)),1,3,col_cov_v);
-    if(sqrt(sqr(pose_corr.x) + sqr(pose_corr.y) ) > 0.01){
-        putArrow(w2i(0,0),w2i(pose_corr),col_cov_v,2);
+    RState rob_bar(k.S_bar);RState rob_hat(k.S);
+    double rob_bar_xphi_f0 = k.S_bar.at<double>(2,0);
+    double rob_hat_xphi_f0 = k.S    .at<double>(2,0);
+    SensorTf w2r;
+    w2r.init(xy(0,0),rob_bar_xphi_f0);
+    xy pose_corrected(w2r.r2s(pose_corr));
+
+
+    if(sqrt(sqr(pose_corr.x) + sqr(pose_corr.y) ) > 0.05){
+        putFullCircle(w2i(xy(0,0)),1,3,col_cov_x);
+        putArrow(w2i(0,0),w2i(pose_corrected),col_cov_x,2);
+
+        circle(plot, w2i(pose_corrected), Mw2i[2][2] * 0.15, blue_bright, 2);
+        double d_ang = k.S.at<double>(2,0) - rob_bar_xphi_f0;
+        line  (plot, w2i(pose_corrected), w2i(pose_corrected.x + 0.15 * cos(d_ang), pose_corrected.y + 0.15 * sin(d_ang)), blue_bright, 2);
     }
 
     cv::Matx33d Mw2i33(Mw2i);
@@ -188,18 +257,18 @@ void PlotData::plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k, c
 
     cv::Matx22d cov_xy22(cov_xy33(0,0),cov_xy33(0,1),cov_xy33(1,0),cov_xy33(1,1));
 
-    double rob_bar_xx_f0   = k.S_bar.at<double>(0,0);
-    double rob_bar_xy_f0   = k.S_bar.at<double>(1,0);
-    double rob_bar_xphi_f0 = k.S_bar.at<double>(2,0);
     cv::Matx22d rot_rob_bar(cos(-rob_bar_xphi_f0),-sin(-rob_bar_xphi_f0),sin(-rob_bar_xphi_f0), cos(-rob_bar_xphi_f0));
 
     cov_xy22 = Mw2i22 * rot_rob_bar * cov_xy22 *rot_rob_bar.t() * Mw2i22.t();
 
-    cv::RotatedRect ellips = cov2rect(cov_xy22,w2i(k.S.at<double>(0,0) - rob_bar_xx_f0,k.S.at<double>(1,0) - rob_bar_xy_f0));
+    cv::RotatedRect ellips = cov2rect(cov_xy22,w2i(pose_corrected));
     cv::ellipse(plot,ellips,col_cov_x,2);
 
+    FrameTf bar2hat;
+    bar2hat.init(rob_bar, rob_hat);
+    cv::Matx22d rot_rob_hat(cos(-rob_hat_xphi_f0),-sin(-rob_hat_xphi_f0),sin(-rob_hat_xphi_f0), cos(-rob_hat_xphi_f0));
     for(int i=0; i< data->size(); i++){
-        xy com  =  data->at(i)->getCom();
+        xy com  =  bar2hat.rn2ro(data->at(i)->getCom());
         ObjectDataPtr obj = data->at(i)->getObj();
         if( k.Oi.count(obj) != 0 ){
             xy v(k.Oi[obj].S_O.at<double>(3,0),k.Oi[obj].S_O.at<double>(4,0));double w = k.Oi[obj].S_O.at<double>(5,0);
@@ -207,7 +276,7 @@ void PlotData::plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k, c
 
             putFullCircle(w2i(tf_sns.s2r(com)),1,3,col_cov_v);
             if(sqrt(sqr(v.x) + sqr(v.y) ) > k.no_upd_vel_hard0){
-                putArrow(w2i(tf_sns.s2r(com)),w2i(tf_sns.s2r(com + xy(v.x,v.y))),col_cov_v,2);
+                putArrow(w2i(tf_sns.s2r(com)),w2i(tf_sns.s2r(com + v)),col_cov_v,2);
             }
 
             Mw2i22 = cv::Matx22d(Mw2i33(0,0),Mw2i33(0,1),Mw2i33(1,0),Mw2i33(1,1));
@@ -217,7 +286,7 @@ void PlotData::plot_kalman(const SegmentDataPtrVectorPtr &data, KalmanSLDM& k, c
 
             cov_xy22 = Mw2i22 * rot_rob_bar * cov_xy22 * rot_rob_bar.t() * Mw2i22.t();
 
-            ellips = cov2rect(cov_xy22,w2i(tf_sns.s2r(com + xy(v.x,v.y))));
+            ellips = cov2rect(cov_xy22,w2i(tf_sns.s2r(com + v)));
             cv::ellipse(plot,ellips,col_cov_v,2);
         }
     }
@@ -260,6 +329,7 @@ void PlotData::update(){
         ellipse(plot, w2i(tf_sns.s2r(0,0)), Size( Mw2i[2][2] * sensor_range_max, Mw2i[2][2]* sensor_range_max), rad_to_deg(-acos(Mw2i[0][0])), rad_to_deg(angle_min), rad_to_deg(angle_max), black );
         line(plot, w2i(tf_sns.s2r(0,0)), w2i(tf_sns.s2r(sensor_range_max * cos(angle_max), sensor_range_max * sin(angle_max))), black);
         line(plot, w2i(tf_sns.s2r(0,0)), w2i(tf_sns.s2r(sensor_range_max * cos(angle_min), sensor_range_max * sin(angle_min))), black);
+
 
         if (plot_grid) {
             for (double y = -round(sensor_range_max + 1); y <= round(sensor_range_max + 1); y+=1.0) {

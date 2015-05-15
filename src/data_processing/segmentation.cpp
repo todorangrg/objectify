@@ -1,3 +1,36 @@
+/***************************************************************************
+ *   Software License Agreement (BSD License)                              *
+ *   Copyright (C) 2015 by Horatiu George Todoran <todorangrg@gmail.com>   *
+ *                                                                         *
+ *   Redistribution and use in source and binary forms, with or without    *
+ *   modification, are permitted provided that the following conditions    *
+ *   are met:                                                              *
+ *                                                                         *
+ *   1. Redistributions of source code must retain the above copyright     *
+ *      notice, this list of conditions and the following disclaimer.      *
+ *   2. Redistributions in binary form must reproduce the above copyright  *
+ *      notice, this list of conditions and the following disclaimer in    *
+ *      the documentation and/or other materials provided with the         *
+ *      distribution.                                                      *
+ *   3. Neither the name of the copyright holder nor the names of its      *
+ *      contributors may be used to endorse or promote products derived    *
+ *      from this software without specific prior written permission.      *
+ *                                                                         *
+ *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS   *
+ *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT     *
+ *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS     *
+ *   FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE        *
+ *   COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,  *
+ *   INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,  *
+ *   BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;      *
+ *   LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER      *
+ *   CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT    *
+ *   LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY *
+ *   WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE           *
+ *   POSSIBILITY OF SUCH DAMAGE.                                           *
+ ***************************************************************************/
+
+
 #include "data_processing/segmentation.h"
 #include "utils/math.h"
 #include "utils/iterators.h"
@@ -25,30 +58,39 @@ Segmentation::Segmentation(RecfgParam &_param, SensorTf& _tf_sns, PlotData& _plo
 ///------------------------------------------------------------------------------------------------------------------------------------------------///
 
 void Segmentation::plot_data(InputData &input, KalmanSLDM k, cv::Scalar col_seg_oi, cv::Scalar col_seg_oe, cv::Scalar col_seg_ni, cv::Scalar col_seg_ne){
-    if(plot_data_segm_init){
+    if((!plot_data_segm_init)&&(!plot_data_segm_ext)){
         if(k.seg_init){
-            plot.plot_segm(k.seg_init    , col_seg_oi);
-        }
-        if(input.seg_init){
-            plot.plot_segm(input.seg_init, col_seg_ni);
+            plot.plot_segm(k.seg_init, col_seg_ni, plot.OBJ);
         }
     }
-    if(plot_data_segm_ext){
-        if(k.seg_ext){
-            plot.plot_segm(k.seg_ext    , col_seg_oe);
+    else{
+        if(plot_data_segm_init){
+            if(k.seg_init){
+                plot.plot_segm(k.seg_init    , col_seg_oi, plot.ALL);
+            }
+            if(input.seg_init){
+                plot.plot_segm(input.seg_init, col_seg_ni, plot.ALL);
+            }
         }
-        if(input.seg_ext){
-            plot.plot_segm(input.seg_ext, col_seg_ne);
+        if(plot_data_segm_ext){
+            if(k.seg_ext){
+                plot.plot_segm(k.seg_ext    , col_seg_oe, plot.ALL);
+            }
+            if(input.seg_ext){
+                plot.plot_segm(input.seg_ext, col_seg_ne, plot.ALL);
+            }
         }
     }
 }
-void Segmentation::run_future(SegmentDataPtrVectorPtr & seg_init, SegmentDataExtPtrVectorPtr & seg_ext_now, SegmentDataExtPtrVectorPtr & seg_ext_ftr, FrameTf & tf){
+void Segmentation::run_future(SegmentDataPtrVectorPtr & seg_init, SegmentDataExtPtrVectorPtr & seg_ext_now, SegmentDataExtPtrVectorPtr & seg_ext_ftr, FrameTf & tf,
+                              RState  rob_f0, KInp u, KalmanSLDM & k){
     sort_seg_init     (seg_init);
     split_com_len     (seg_init,          false);
 
     assign_seg_ext    (seg_init   , seg_ext_now, false);
-    split_for_occl    (seg_ext_now);
-    bloat_image       (seg_ext_now, 0.3);
+
+//    split_for_occl    (seg_ext_now);
+//    bloat_image       (seg_ext_now, 0.3);
 //    calc_occlusion    (seg_ext_now,     IN_SEG );//
 //    calc_occlusion    (seg_ext_now,     IN_ALL );//
 //    sample_const_angle(seg_ext_now);
@@ -56,7 +98,9 @@ void Segmentation::run_future(SegmentDataPtrVectorPtr & seg_init, SegmentDataExt
 //    split_com_len     (seg_ext_now,       false);
     SegCopy           (seg_ext_now, seg_ext_ftr);
 
-    calc_tf           (seg_ext_ftr,     OLD2NEW, tf);
+
+//    calc_tf           (seg_ext_ftr,     OLD2NEW, tf);
+    k.predict_p_cloud(seg_ext_ftr, rob_f0, u.dt);
 //    calc_occlusion    (seg_ext_ftr,     IN_ALL );//
 //    sample_const_angle(seg_ext_ftr);
 //    erase_img_outl    (seg_ext_ftr);
@@ -173,18 +217,34 @@ void Segmentation::assign_seg_ext(const SegmentDataPtrVectorPtr &input, SegmentD
 template <class SegData>
 void Segmentation::calc_tf(boost::shared_ptr<std::vector<boost::shared_ptr<SegData> > > &input, TFmode tf_mode , FrameTf _tf_frm){
     for(typename std::vector<boost::shared_ptr<SegData> >::iterator ss = input->begin(); ss != input->end(); ss++){
-        for(PointDataVectorIter pp = (*ss)->p.begin(); pp != (*ss)->p.end(); pp++){
-            polar tf_point;
-            if     ( tf_mode == OLD2NEW ){
-                tf_point = to_polar( tf_sns.r2s( _tf_frm.ro2rn( tf_sns.s2r( to_xy( *pp ) ) ) ) );
-            }
-            else if( tf_mode == NEW2OLD ){
-                tf_point = to_polar( tf_sns.r2s( _tf_frm.rn2ro( tf_sns.s2r( to_xy( *pp ) ) ) ) );
-            }
-            normalizeAngle( tf_point.angle );
-            pp->r     = tf_point.r;
-            pp->angle = tf_point.angle;
+        calc_seg_tf((*ss)->p, tf_mode, _tf_frm);
+//        for(PointDataVectorIter pp = (*ss)->p.begin(); pp != (*ss)->p.end(); pp++){
+//            polar tf_point;
+//            if     ( tf_mode == OLD2NEW ){
+//                tf_point = to_polar( tf_sns.r2s( _tf_frm.ro2rn( tf_sns.s2r( to_xy( *pp ) ) ) ) );
+//            }
+//            else if( tf_mode == NEW2OLD ){
+//                tf_point = to_polar( tf_sns.r2s( _tf_frm.rn2ro( tf_sns.s2r( to_xy( *pp ) ) ) ) );
+//            }
+//            normalizeAngle( tf_point.angle );
+//            pp->r     = tf_point.r;
+//            pp->angle = tf_point.angle;
+//        }
+    }
+}
+
+void Segmentation::calc_seg_tf(PointDataVector & _p, TFmode tf_mode, FrameTf _tf_frm){
+    for(PointDataVectorIter pp = _p.begin(); pp != _p.end(); pp++){
+        polar tf_point;
+        if     ( tf_mode == OLD2NEW ){
+            tf_point = to_polar( tf_sns.r2s( _tf_frm.ro2rn( tf_sns.s2r( to_xy( *pp ) ) ) ) );
         }
+        else if( tf_mode == NEW2OLD ){
+            tf_point = to_polar( tf_sns.r2s( _tf_frm.rn2ro( tf_sns.s2r( to_xy( *pp ) ) ) ) );
+        }
+        normalizeAngle( tf_point.angle );
+        pp->r     = tf_point.r;
+        pp->angle = tf_point.angle;
     }
 }
 
@@ -647,6 +707,12 @@ void Segmentation::bloat_image(SegmentDataExtPtrVectorPtr &_input, double radius
                 seg_stat->first->p.insert(seg_stat->first->p.end(), p_cpy.begin() + i_max + 1, p_cpy.end());
                 seg_stat->first->p.insert(seg_stat->first->p.end(), p_cpy.begin(), p_cpy.begin() + i_max);
             }
+        }
+    }
+    for(SegmentDataExtPtrVectorIter seg = _input->begin(); seg != _input->end(); seg++){
+        if((*seg)->p.size() == 0){
+            seg = _input->erase(seg);
+            seg--;
         }
     }
 }

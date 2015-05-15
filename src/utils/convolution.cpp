@@ -1,3 +1,36 @@
+/***************************************************************************
+ *   Software License Agreement (BSD License)                              *
+ *   Copyright (C) 2015 by Horatiu George Todoran <todorangrg@gmail.com>   *
+ *                                                                         *
+ *   Redistribution and use in source and binary forms, with or without    *
+ *   modification, are permitted provided that the following conditions    *
+ *   are met:                                                              *
+ *                                                                         *
+ *   1. Redistributions of source code must retain the above copyright     *
+ *      notice, this list of conditions and the following disclaimer.      *
+ *   2. Redistributions in binary form must reproduce the above copyright  *
+ *      notice, this list of conditions and the following disclaimer in    *
+ *      the documentation and/or other materials provided with the         *
+ *      distribution.                                                      *
+ *   3. Neither the name of the copyright holder nor the names of its      *
+ *      contributors may be used to endorse or promote products derived    *
+ *      from this software without specific prior written permission.      *
+ *                                                                         *
+ *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS   *
+ *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT     *
+ *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS     *
+ *   FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE        *
+ *   COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,  *
+ *   INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,  *
+ *   BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;      *
+ *   LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER      *
+ *   CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT    *
+ *   LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY *
+ *   WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE           *
+ *   POSSIBILITY OF SUCH DAMAGE.                                           *
+ ***************************************************************************/
+
+
 #include "utils/base_classes.h"
 #include "utils/convolution.h"
 #include "utils/math.h"
@@ -432,11 +465,59 @@ void Convolution::add_accepted_tf(int c_acc_it_min, int c_acc_it_max){
                       cov_xy                , g_y_inv.getVariance(), 0      ,
                       0                     , 0                     , var_rot);
 
-    cv::Matx33d Base_noise = cv::Matx33d::eye() * (sqr(2.0 * sample_dist) );//COST FUNCTION
+    cv::Matx33d Base_noise = cv::Matx33d::eye() * (sqr(2.0 * sample_dist ));//COST FUNCTION
     Base_noise(2,2) = noise_ang_base;
     double len_noise_scale = (g_len.getMean() * sample_dist) / len_max;//COST FUNCTION
-    Q  = (Q  + Base_noise) * (1.0 / len_noise_scale);
-    Qi = (Qi + Base_noise) * (1.0 / len_noise_scale);
+    Q  = (Q  /** 1000*/ + Base_noise) * (1.0 / len_noise_scale);
+    Qi = (Qi /** 1000 */+ Base_noise) * (1.0 / len_noise_scale);
+
+    if(len_noise_scale * len_max < 0.07){//TODO: quick fix
+        Q = Q * 1000;
+        Qi = Qi * 1000;
+    }
+
+   cv::Mat Qm (Q); Qm .rowRange(0,2).colRange(0,2).copyTo(Qm);
+   cv::Mat Qim(Qi);Qim.rowRange(0,2).colRange(0,2).copyTo(Qim);
+   cv::Mat_<double> eigval, eigvec, eigvec_cpy, eval; bool index_x;
+   
+   cv::eigen(Qm, eigval, eigvec);
+
+   if(Qm.at<double>(0,0)>Qm.at<double>(1,1)){ index_x = 0; }
+   else                                     { index_x = 1; }
+   if     (fabs(eigval(0,!index_x))/*y*/ / fabs(eigval(0,index_x))/*x*/ > 2)      { eigval.at<double>(0,!index_x) = 100 * eigval.at<double>(0,!index_x); }
+   else if(fabs(eigval(0,!index_x))/*y*/ / fabs(eigval(0,index_x))/*x*/ < 1.0/2.0){ eigval.at<double>(0, index_x) = 100 * eigval.at<double>(0, index_x); }
+   eval = cv::Mat(2,2,CV_64F,0.);
+   eval.row(0).col(0) = eigval.at<double>(0, index_x);
+   eval.row(1).col(1) = eigval.at<double>(0,!index_x);
+   eigvec.copyTo(eigvec_cpy);
+   if(index_x == 1){
+       eigvec_cpy.colRange(0,2).row(1).copyTo(eigvec.colRange(0,2).row(0));
+       eigvec_cpy.colRange(0,2).row(0).copyTo(eigvec.colRange(0,2).row(1));
+   }
+   Qm = eigvec.t() * eval * eigvec.t().inv();
+
+   
+   
+   cv::eigen(Qim, eigval, eigvec);
+   
+   if(Qim.at<double>(0,0)>Qim.at<double>(1,1)){ index_x = 0; }
+   else                                       { index_x = 1; }
+   if     (fabs(eigval(0,!index_x))/*y*/ / fabs(eigval(0,index_x))/*x*/ > 2)      { eigval.at<double>(0,!index_x) = 100 * eigval.at<double>(0,!index_x); }
+   else if(fabs(eigval(0,!index_x))/*y*/ / fabs(eigval(0,index_x))/*x*/ < 1.0/2.0){ eigval.at<double>(0, index_x) = 100 * eigval.at<double>(0, index_x); }
+   eval = cv::Mat(2,2,CV_64F,0.);
+   eval.row(0).col(0) = eigval.at<double>(0, index_x);
+   eval.row(1).col(1) = eigval.at<double>(0,!index_x);
+   eigvec.copyTo(eigvec_cpy);
+   if(index_x == 1){
+       eigvec_cpy.colRange(0,2).row(1).copyTo(eigvec.colRange(0,2).row(0));
+       eigvec_cpy.colRange(0,2).row(0).copyTo(eigvec.colRange(0,2).row(1));
+   }
+   Qim = eigvec.t() * eval * eigvec.t().inv();
+
+   
+   
+   Q (0,0) = Qm .at<double>(0,0); Q (0,1) = Qm .at<double>(0,1); Q (1,0) = Qm .at<double>(1,0); Q (1,1) = Qm .at<double>(1,1);
+   Qi(0,0) = Qim.at<double>(0,0); Qi(0,1) = Qim.at<double>(0,1); Qi(1,0) = Qim.at<double>(1,0); Qi(1,1) = Qim.at<double>(1,1);
 
     TfVar tf_var    (com    , xy(g_x    .getMean(), g_y    .getMean()), T , Q , g_len.getMean());
     TfVar tf_var_inv(com_inv, xy(g_x_inv.getMean(), g_y_inv.getMean()), Ti, Qi, g_len.getMean());
