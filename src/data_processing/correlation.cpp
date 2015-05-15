@@ -448,105 +448,105 @@ std::string Correlation::print_segment(SegmentDataBase& it_seg){
 }
 
 void Correlation::print_neigh_list(FrameStatus fr_status){
-    std::stringstream ss;ss.precision(0);
-    if(fr_status == FRAME_OLD){
-        ss<<"FRAME NEIGHBOURS INIT (t-1)"<<std::endl;
-    }
-    else{
-        ss<<"FRAME NEIGHBOURS INIT ( t )"<<std::endl;
-    }
-    //////////////////////////////////////////////////////////////////////////////////////very very bad sorted extraction vv
-    int k=0;
-    std::map <SegmentDataPtr, std::vector<NeighDataInit> >::iterator it_seg_old;
-    std::map <SegmentDataPtr, std::vector<NeighDataInit> >::iterator it_seg;
-
-    it_seg_old = neigh_data_init[fr_status].end();
-    while(k < neigh_data_init[fr_status].size()){
-        it_seg = neigh_data_init[fr_status].begin();
-        bool reach_end = false;
-        if(k>0){while((it_seg->first->id <= it_seg_old->first->id)){ it_seg++; if(it_seg == neigh_data_init[fr_status].end()){reach_end = true; break;}}}
-        for(std::map <SegmentDataPtr, std::vector<NeighDataInit> >::iterator it_seg_s = it_seg;it_seg_s != neigh_data_init[fr_status].end();it_seg_s++){
-            if(k > 0){
-                if((it_seg_s->first->id > it_seg_old->first->id)&&(it_seg->first->id > it_seg_s->first->id)){
-                    it_seg = it_seg_s;
-                }
-            }else{
-                if(it_seg->first->id > it_seg_s->first->id){
-                    it_seg = it_seg_s;
-                }
-            }
-        }
-        it_seg_old = it_seg;
-        k++;
-        if(reach_end){continue; }
-    //////////////////////////////////////////////////////////////////////////////////////very very bad sorted extraction ^^
-
-        ss<<print_segment(*it_seg->first);
-        ss<<" - ";
-        for(std::vector<NeighDataInit>::iterator it_neigh = it_seg->second.begin();it_neigh != it_seg->second.end();it_neigh++){
-            ss<<print_segment(*it_neigh->neigh);
-            ss<<"    | ";
-        }
-        ss<<std::endl<<"           ";
-        for(std::vector<NeighDataInit>::iterator it_neigh = it_seg->second.begin();it_neigh != it_seg->second.end();it_neigh++){
-            ss<<std::setw(3)<<std::fixed<<round(it_neigh->prob_fwd*100.0);
-            ss<<"/"<<std::setw(3)<<std::fixed<<round(it_neigh->prob_rev*100.0);
-            ss<<"    | ";
-            ss<" ";
-        }
-        ss<<std::endl;
-    }
-    ss<<std::endl;
-
-    if(fr_status == FRAME_OLD){
-        ss<<"FRAME NEIGHBOURS EXT  (t-1)"<<std::endl;
-    }
-    else{
-        ss<<"FRAME NEIGHBOURS EXT  ( t )"<<std::endl;
-    }
-    //////////////////////////////////////////////////////////////////////////////////////very very bad sorted extraction vv
-    k=0;
-    std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >::iterator it_seg_old_e;
-    std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >::iterator it_seg_e;
-
-    it_seg_old_e = neigh_data_ext[fr_status].end();
-    while(k < neigh_data_ext[fr_status].size()){
-        it_seg_e = neigh_data_ext[fr_status].begin();
-        bool reach_end = false;
-        if(k>0){while((it_seg_e->first->id <= it_seg_old_e->first->id)){ it_seg_e++; if(it_seg_e == neigh_data_ext[fr_status].end()){reach_end = true; break;}}}
-
-        for(std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >::iterator it_seg_s = it_seg_e;it_seg_s != neigh_data_ext[fr_status].end();it_seg_s++){
-            if(k > 0){
-                if((it_seg_s->first->id > it_seg_old_e->first->id)&&(it_seg_e->first->id > it_seg_s->first->id)){
-                    it_seg_e = it_seg_s;
-                }
-            }else{
-                if(it_seg_e->first->id > it_seg_s->first->id){
-                    it_seg_e = it_seg_s;
-                }
-            }
-        }
-        it_seg_old_e = it_seg_e;
-        k++;
-        if(reach_end){continue; }
-    //////////////////////////////////////////////////////////////////////////////////////very very bad sorted extraction ^^
-
-        ss<<print_segment(*it_seg_e->first);
-        ss<<" - ";
-        for(std::vector<NeighDataExt>::iterator it_neigh = it_seg_e->second.begin();it_neigh != it_seg_e->second.end();it_neigh++){
-            ss<<print_segment(*it_neigh->neigh);
-            ss<<"    | ";
-        }
-        ss<<std::endl<<"           ";
-        for(std::vector<NeighDataExt>::iterator it_neigh = it_seg_e->second.begin();it_neigh != it_seg_e->second.end();it_neigh++){
-            ss<<std::setw(3)<<std::fixed<<round(it_neigh->prob_fwd*100.0);
-            ss<<"/"<<std::setw(3)<<std::fixed<<round(it_neigh->prob_rev*100.0);
-            ss<<"/tf";
-            if(it_neigh->neigh->conv->tf->size() > 0){ ss<<"+| "; } else { ss<<"?| "; }
-        }
-        ss<<std::endl;
-    }
-    ss<<std::endl;
-    //std::cout<<ss.str();
-    plot_data.putInfoText(ss,13,plot_data.black);
+//     std::stringstream ss;ss.precision(0);
+//     if(fr_status == FRAME_OLD){
+//         ss<<"FRAME NEIGHBOURS INIT (t-1)"<<std::endl;
+//     }
+//     else{
+//         ss<<"FRAME NEIGHBOURS INIT ( t )"<<std::endl;
+//     }
+//     //////////////////////////////////////////////////////////////////////////////////////very very bad sorted extraction vv
+//     int k=0;
+//     std::map <SegmentDataPtr, std::vector<NeighDataInit> >::iterator it_seg_old;
+//     std::map <SegmentDataPtr, std::vector<NeighDataInit> >::iterator it_seg;
+// 
+//     it_seg_old = neigh_data_init[fr_status].end();
+//     while(k < neigh_data_init[fr_status].size()){
+//         it_seg = neigh_data_init[fr_status].begin();
+//         bool reach_end = false;
+//         if(k>0){while((it_seg->first->id <= it_seg_old->first->id)){ it_seg++; if(it_seg == neigh_data_init[fr_status].end()){reach_end = true; break;}}}
+//         for(std::map <SegmentDataPtr, std::vector<NeighDataInit> >::iterator it_seg_s = it_seg;it_seg_s != neigh_data_init[fr_status].end();it_seg_s++){
+//             if(k > 0){
+//                 if((it_seg_s->first->id > it_seg_old->first->id)&&(it_seg->first->id > it_seg_s->first->id)){
+//                     it_seg = it_seg_s;
+//                 }
+//             }else{
+//                 if(it_seg->first->id > it_seg_s->first->id){
+//                     it_seg = it_seg_s;
+//                 }
+//             }
+//         }
+//         it_seg_old = it_seg;
+//         k++;
+//         if(reach_end){continue; }
+//     //////////////////////////////////////////////////////////////////////////////////////very very bad sorted extraction ^^
+// 
+//         ss<<print_segment(*it_seg->first);
+//         ss<<" - ";
+//         for(std::vector<NeighDataInit>::iterator it_neigh = it_seg->second.begin();it_neigh != it_seg->second.end();it_neigh++){
+//             ss<<print_segment(*it_neigh->neigh);
+//             ss<<"    | ";
+//         }
+//         ss<<std::endl<<"           ";
+//         for(std::vector<NeighDataInit>::iterator it_neigh = it_seg->second.begin();it_neigh != it_seg->second.end();it_neigh++){
+//             ss<<std::setw(3)<<std::fixed<<round(it_neigh->prob_fwd*100.0);
+//             ss<<"/"<<std::setw(3)<<std::fixed<<round(it_neigh->prob_rev*100.0);
+//             ss<<"    | ";
+//             ss<" ";
+//         }
+//         ss<<std::endl;
+//     }
+//     ss<<std::endl;
+// 
+//     if(fr_status == FRAME_OLD){
+//         ss<<"FRAME NEIGHBOURS EXT  (t-1)"<<std::endl;
+//     }
+//     else{
+//         ss<<"FRAME NEIGHBOURS EXT  ( t )"<<std::endl;
+//     }
+//     //////////////////////////////////////////////////////////////////////////////////////very very bad sorted extraction vv
+//     k=0;
+//     std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >::iterator it_seg_old_e;
+//     std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >::iterator it_seg_e;
+// 
+//     it_seg_old_e = neigh_data_ext[fr_status].end();
+//     while(k < neigh_data_ext[fr_status].size()){
+//         it_seg_e = neigh_data_ext[fr_status].begin();
+//         bool reach_end = false;
+//         if(k>0){while((it_seg_e->first->id <= it_seg_old_e->first->id)){ it_seg_e++; if(it_seg_e == neigh_data_ext[fr_status].end()){reach_end = true; break;}}}
+// 
+//         for(std::map <SegmentDataExtPtr, std::vector<NeighDataExt> >::iterator it_seg_s = it_seg_e;it_seg_s != neigh_data_ext[fr_status].end();it_seg_s++){
+//             if(k > 0){
+//                 if((it_seg_s->first->id > it_seg_old_e->first->id)&&(it_seg_e->first->id > it_seg_s->first->id)){
+//                     it_seg_e = it_seg_s;
+//                 }
+//             }else{
+//                 if(it_seg_e->first->id > it_seg_s->first->id){
+//                     it_seg_e = it_seg_s;
+//                 }
+//             }
+//         }
+//         it_seg_old_e = it_seg_e;
+//         k++;
+//         if(reach_end){continue; }
+//     //////////////////////////////////////////////////////////////////////////////////////very very bad sorted extraction ^^
+// 
+//         ss<<print_segment(*it_seg_e->first);
+//         ss<<" - ";
+//         for(std::vector<NeighDataExt>::iterator it_neigh = it_seg_e->second.begin();it_neigh != it_seg_e->second.end();it_neigh++){
+//             ss<<print_segment(*it_neigh->neigh);
+//             ss<<"    | ";
+//         }
+//         ss<<std::endl<<"           ";
+//         for(std::vector<NeighDataExt>::iterator it_neigh = it_seg_e->second.begin();it_neigh != it_seg_e->second.end();it_neigh++){
+//             ss<<std::setw(3)<<std::fixed<<round(it_neigh->prob_fwd*100.0);
+//             ss<<"/"<<std::setw(3)<<std::fixed<<round(it_neigh->prob_rev*100.0);
+//             ss<<"/tf";
+//             if(it_neigh->neigh->conv->tf->size() > 0){ ss<<"+| "; } else { ss<<"?| "; }
+//         }
+//         ss<<std::endl;
+//     }
+//     ss<<std::endl;
+//     //std::cout<<ss.str();
+//     plot_data.putInfoText(ss,13,plot_data.black);
 }
